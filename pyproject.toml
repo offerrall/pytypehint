@@ -14,7 +14,7 @@ authors = [{ name = "Beltrán Offerrall" }]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["mypy", "pytest"]
+dev = ["mypy", "pytest", "hypothesis"]
 
 [tool.hatch.version]
 path = "src/pytypehint/__init__.py"
@@ -31,3 +31,4 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: marks tests as slow"]
