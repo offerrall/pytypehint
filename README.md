@@ -1,4 +1,6 @@
-# pytypehint 0.0.1
+# pytypehint
+
+[![PyPI](https://img.shields.io/pypi/v/pytypehint.svg)](https://pypi.org/project/pytypehint/)
 
 `pytypehint` compiles Python type hints into strict, inspectable schemas. A
 hint carries everything there is to know about a field — its type, its limits,
@@ -9,6 +11,10 @@ external input and execute functions themselves. What the core hands them is
 raw, inspectable structure, never an opinion about it: interpretive
 conveniences belong to wrappers and to intermediate packages built on the core.
 Stdlib only; Python 3.11+; `py.typed` included.
+
+```bash
+pip install pytypehint
+```
 
 ```python
 from dataclasses import dataclass, field
