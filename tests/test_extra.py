@@ -267,3 +267,129 @@ def test_hand_built_shapes_reject_a_broken_extras_mapping():
 
 def test_hand_built_extras_are_stored_sorted():
     assert Int(_extras=(("b.y", "2"), ("a.x", "1")))._extras == (("a.x", "1"), ("b.y", "2"))
+
+
+def test_old_single_argument_api_is_rejected():
+    with pytest.raises(TypeError, match=r"missing 1 required positional argument: 'value'"):
+        Extra("legacy-value")
+
+
+def test_shape_does_not_expose_the_removed_singular_extra_attribute():
+    shape = Int(_extras=(("pkg.k", "value"),))
+
+    assert not hasattr(shape, "extra")
+    with pytest.raises(AttributeError):
+        _ = shape.extra
+
+
+@pytest.mark.parametrize("value", ["", "\n", "\x00", "☕", "{" + "x" * 10_000 + "}"])
+def test_extra_values_are_stored_completely_verbatim(value):
+    @dataclass
+    class Model:
+        item: Annotated[str, Extra("host.payload", value)]
+
+    shape = struct_of(Model).fields[0].shape[0]
+    assert shape.extras["host.payload"] == value
+
+
+def test_mutating_or_clearing_one_extras_snapshot_cannot_touch_the_shape():
+    shape = Int(_extras=(("a.x", "1"), ("b.y", "2")))
+    first = shape.extras
+    second = shape.extras
+
+    first["a.x"] = "corrupt"
+    first["new.key"] = "injected"
+    second.clear()
+
+    assert shape.extras == {"a.x": "1", "b.y": "2"}
+    assert shape._extras == (("a.x", "1"), ("b.y", "2"))
+
+
+def test_list_container_and_item_extras_do_not_leak_into_each_other():
+    @dataclass
+    class Model:
+        values: Annotated[
+            list[Annotated[int, Extra("item.widget", "number")]],
+            Extra("list.widget", "collection"),
+        ]
+
+    container = struct_of(Model).fields[0].shape[0]
+
+    assert container.extras == {"list.widget": "collection"}
+    assert container.item[0].extras == {"item.widget": "number"}
+
+
+def test_each_union_option_keeps_only_its_own_extras():
+    @dataclass
+    class Model:
+        value: (
+            Annotated[int, Extra("int.widget", "number")]
+            | Annotated[str, Extra("str.widget", "text")]
+            | None
+        )
+
+    int_shape, str_shape, none_shape = struct_of(Model).fields[0].shape
+
+    assert int_shape.extras == {"int.widget": "number"}
+    assert str_shape.extras == {"str.widget": "text"}
+    assert none_shape.extras == {}
+
+
+def test_many_layers_merge_per_key_without_losing_unrelated_namespaces():
+    Base: TypeAlias = Annotated[
+        int,
+        Extra("a.color", "base"),
+        Extra("b.size", "base"),
+    ]
+    Middle: TypeAlias = Annotated[
+        Base,
+        Extra("a.color", "middle"),
+        Extra("c.mode", "middle"),
+    ]
+
+    @dataclass
+    class Model:
+        value: Annotated[
+            Middle,
+            Extra("a.color", "outer"),
+            Extra("b.size", "outer"),
+        ]
+
+    assert struct_of(Model).fields[0].shape[0].extras == {
+        "a.color": "outer",
+        "b.size": "outer",
+        "c.mode": "middle",
+    }
+
+
+@pytest.mark.parametrize("shape_type", [Int, Float, Str, Bool, Date, Time, NoneShape])
+def test_every_scalar_shape_rejects_duplicate_hand_built_extra_keys(shape_type):
+    with pytest.raises(ValueError, match=r"_extras must not repeat keys$"):
+        shape_type(_extras=(("pkg.k", "first"), ("pkg.k", "second")))
+
+
+@pytest.mark.parametrize("broken", [
+    (("pkg.k", 1),),
+    ((1, "value"),),
+    (("pkg.k", "value", "surplus"),),
+    (["pkg.k", "value"],),
+    ((),),
+])
+def test_hand_built_extras_reject_malformed_pairs_without_partial_acceptance(broken):
+    with pytest.raises(TypeError, match=r"expected a \(key, value\) pair of str"):
+        Int(_extras=broken)
+
+
+def test_equal_duplicate_atoms_collapse_to_one_mapping_entry():
+    @dataclass
+    class Model:
+        value: Annotated[
+            int,
+            Extra("pkg.k", "same"),
+            Extra("pkg.k", "same"),
+            Extra("pkg.k", "same"),
+        ]
+
+    shape = struct_of(Model).fields[0].shape[0]
+    assert shape._extras == (("pkg.k", "same"),)
+    assert shape.extras == {"pkg.k": "same"}
