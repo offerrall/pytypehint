@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Annotated, Literal, Union, get_args, get_origin, get_type_hints
 
 from pytypehint import atoms
-from pytypehint.atoms import Choices, Description, Label, OptionalToggle
+from pytypehint.atoms import Choices, Description, Extra, Label, OptionalToggle
 from pytypehint.shapes import Bool, Date, EnumShape, Float, Int, List, NoneShape, Shape, Str, Time
 from pytypehint.signature import Signature
 from pytypehint.structure import Field, Struct, _Factory, _certify
@@ -28,8 +28,16 @@ def _atom_type(hint):
 
 def _atoms_of(shape_cls):
     hints = get_type_hints(shape_cls)
-    return {a: f.name for f in dc_fields(shape_cls)
-            if (a := _atom_type(hints[f.name])) is not None}
+    table = {a: f.name for f in dc_fields(shape_cls)
+             if (a := _atom_type(hints[f.name])) is not None}
+
+    # Extras merge into one field of key/value pairs, so no field is hinted
+    # `Extra | None` for the reflection above to find. The table still decides
+    # acceptance: shapes without the field keep rejecting Extra as unsupported.
+    if any(f.name == "_extras" for f in dc_fields(shape_cls)):
+        table[Extra] = "_extras"
+
+    return table
 
 
 _VOCABULARY = {cls.pytype: (cls, _atoms_of(cls))
@@ -39,11 +47,25 @@ _VOCABULARY = {cls.pytype: (cls, _atoms_of(cls))
 
 def _kwargs_of(meta, kind, table):
     kwargs = {}
+    extras: dict[str, str] = {}
     for m in meta:
         name = table.get(type(m))
         if name is None:
             raise TypeError(f"unsupported metadata for {kind}: {m!r}")
+
+        # Extras layer per key, not per atom class: different keys accumulate,
+        # a repeated key is overwritten. Typing flattens Annotated before we see
+        # it, so the rightmost atom is the outer layer and the standard rule
+        # falls out of writing the key in order.
+        if type(m) is Extra:
+            extras[m.key] = m.value
+            continue
+
         kwargs[name] = m
+
+    if extras:
+        kwargs[table[Extra]] = tuple(sorted(extras.items()))
+
     return kwargs
 
 

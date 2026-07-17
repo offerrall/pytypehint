@@ -86,3 +86,34 @@ versions its own ergonomics separately — `pytypehint-inspect` and its like.
 The core is what such a package reads, not where it lives. Proposals to add
 interpretive helpers here — optionality, flattening, traversal, "the real
 option of an `X | None`" — are answered by these two paragraphs.
+
+## Expanding the vocabulary
+
+The atom vocabulary is closed and curated. An atom describes one field: its
+type, its limits, how that single control presents itself. It never describes
+layout, grouping, or a relation between fields — where a field sits, which
+fields travel together, which one enables another. Those are statements about a
+form, not about a field, and they belong to the wrapper that renders the form or
+to an intermediate package that models one.
+
+The bar for admission is convergence. A new core atom must have semantics that
+several rendering contexts agree on — a form, a CLI, a TUI each read it and
+reach the same meaning — and it enters because that agreement already exists,
+not because one wrapper needs somewhere to put a value. Every atom the core
+names is a promise it maintains for every consumer, including the ones that will
+never render it.
+
+Everything else travels through `Extra`. An intermediate package defines its own
+author-facing classes, typed and validated on its own terms, and compiles them
+down to namespaced entries the core stores verbatim; its key names its owner, so
+two packages annotate one field without meeting. The core stores coordinates,
+never trees: it holds `str -> str` and reads neither side. A package that wants
+structure serializes it inside its own value and parses it back — that keeps the
+schema of the structure in the package that invented it, where it can version and
+change without the core's permission.
+
+The promotion path exists and runs one way. A convention proven in `Extra` across
+wrappers may be promoted into the core vocabulary once its convergence is
+demonstrated rather than argued. Nothing travels back: an atom the core has named
+is a compatibility obligation, and demoting it would break every wrapper that
+took the promise at face value.

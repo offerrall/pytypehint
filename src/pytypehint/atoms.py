@@ -99,15 +99,26 @@ class Placeholder:
 
 @dataclass(frozen=True)
 class Extra:
+    key: str
     value: str
 
     def __post_init__(self):
         name = type_name(self)
+        if type(self.key) is not str:
+            raise TypeError(f"{name}.key must be str, got {type(self.key).__name__}")
+
+        if not self.key:
+            raise ValueError(f"{name}.key must not be empty")
+
+        # The dot names the package that owns the key: several wrappers annotate
+        # one field, and provenance is what keeps their keys apart.
+        if "." not in self.key:
+            raise ValueError(f"{name}.key must be namespaced ('package.name'), got {self.key!r}")
+
+        # Unlike its sibling atoms the value may be empty: the core stores it and
+        # never reads it, so what emptiness means is the wrapper's business.
         if type(self.value) is not str:
             raise TypeError(f"{name}.value must be str, got {type(self.value).__name__}")
-
-        if not self.value:
-            raise ValueError(f"{name}.value must not be empty")
 
 
 @dataclass(frozen=True, kw_only=True)

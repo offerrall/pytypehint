@@ -35,8 +35,17 @@ is notation for numeric fields and requires both `Min` and `Max`.
 `Placeholder(text)` is non-empty wrapper notation for scalar inputs.
 `IsPassword()` and `Rows(n)` are string notation; rows must be positive.
 
-`Extra(text)` is opaque, non-empty wrapper notation. The core stores it and
-never interprets it; layering follows the standard rule.
+`Extra(key, value)` carries wrapper notation the vocabulary does not name. The
+key is namespaced — `"package.name"`, the dot required — so that two packages
+annotating one field cannot collide by accident and every entry names its owner.
+The value is any string, empty included: the core stores it and never reads it,
+so what an empty value means is the wrapper's business.
+
+Several `Extra` atoms on one hint merge by key. The shape stores them as a
+sorted tuple of pairs, which keeps it hashable and its equality independent of
+the order the atoms were written in, and exposes them as a read-only `extras`
+dict built on access. Filtering by namespace is the wrapper's job:
+`{k: v for k, v in shape.extras.items() if k.startswith("ledform.")}`.
 
 `IsPathFile(extensions=(...))` marks a string as a path input. Extensions are
 lowercase dotted suffixes; validation checks the suffix, never file existence.
@@ -74,6 +83,20 @@ Narrow = Annotated[Percent, Max(50)]
 
 Optional = Annotated[int | None, OptionalToggle(True)]
 Closed = Annotated[Optional, OptionalToggle(False)]
+```
+
+Extras layer per key rather than per `Extra` class: different keys accumulate on
+the shape, and a repeated key follows the rule above. Outer and rightmost are
+one mechanism here — typing flattens `Annotated` before compilation, so the
+outer layer *is* the rightmost atom:
+
+```python
+from typing import Annotated
+from pytypehint import Extra
+
+Themed = Annotated[int, Extra("ledform.color", "red"), Extra("ledform.rows", "2")]
+Blue = Annotated[Themed, Extra("ledform.color", "blue")]
+# extras == {"ledform.color": "blue", "ledform.rows": "2"}
 ```
 
 Conflicting field atoms hoisted from different union options fail with

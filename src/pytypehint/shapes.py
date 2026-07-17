@@ -7,11 +7,34 @@ from typing import ClassVar, cast
 
 from pytypehint.atoms import (
     Choices, Min, Max, MultipleOf, Pattern, IsPassword, IsPathFile, Rows,
-    Step, Slider, Placeholder, Extra,
+    Step, Slider, Placeholder,
 )
 from pytypehint.errors import SchemaTypeError, SchemaValueError, _prefixed
 from pytypehint.utils import check_opt, type_name
 from pytypehint.validation import check_options_value
+
+
+# Extras are stored as a sorted tuple of pairs, never as a dict: the shapes are
+# frozen dataclasses with eq, so a dict field would break the generated __hash__
+# at call time and stay mutable inside a value that advertises itself as frozen.
+# Sorting makes equality independent of the order the atoms were written in; the
+# `extras` property rebuilds the dict callers want on access.
+def _normalize_extras(owner: str, value) -> tuple[tuple[str, str], ...]:
+    if type(value) is not tuple:
+        raise TypeError(f"{owner}._extras must be tuple, got {type(value).__name__}")
+
+    for pair in value:
+        if (type(pair) is not tuple or len(pair) != 2
+                or any(type(s) is not str for s in pair)):
+            raise TypeError(f"{owner}._extras: expected a (key, value) pair of str, got {pair!r}")
+
+    # Compilation merges by key, so a repeat can only arrive from hand
+    # construction — where it is not a layering to resolve but a broken mapping.
+    keys = [k for k, _ in value]
+    if len(set(keys)) != len(keys):
+        raise ValueError(f"{owner}._extras must not repeat keys")
+
+    return tuple(sorted(value))
 
 
 class Shape:
@@ -36,7 +59,11 @@ class Int(Shape):
     step: Step | None = None
     slider: Slider | None = None
     placeholder: Placeholder | None = None
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
         name = type_name(self)
@@ -48,7 +75,7 @@ class Int(Shape):
         check_opt(name, "step", self.step, Step)
         check_opt(name, "slider", self.slider, Slider)
         check_opt(name, "placeholder", self.placeholder, Placeholder)
-        check_opt(name, "extra", self.extra, Extra)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
         if self.min is not None and type(self.min.value) is not int:
             raise TypeError(f"{name}.min: expected int, got {type(self.min.value).__name__}")
@@ -133,7 +160,11 @@ class Float(Shape):
     step: Step | None = None
     slider: Slider | None = None
     placeholder: Placeholder | None = None
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
         name = type_name(self)
@@ -144,7 +175,7 @@ class Float(Shape):
         check_opt(name, "step", self.step, Step)
         check_opt(name, "slider", self.slider, Slider)
         check_opt(name, "placeholder", self.placeholder, Placeholder)
-        check_opt(name, "extra", self.extra, Extra)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
         if self.min is not None and type(self.min.value) not in (int, float):
             raise TypeError(f"{name}.min: expected int or float, got {type(self.min.value).__name__}")
@@ -224,9 +255,13 @@ class Str(Shape):
     is_password: IsPassword | None = None
     rows: Rows | None = None
     placeholder: Placeholder | None = None
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
     _compiled: re.Pattern[str] | None = field(
         default=None, init=False, repr=False, compare=False)
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
         name = type_name(self)
@@ -239,7 +274,7 @@ class Str(Shape):
         check_opt(name, "is_password", self.is_password, IsPassword)
         check_opt(name, "rows", self.rows, Rows)
         check_opt(name, "placeholder", self.placeholder, Placeholder)
-        check_opt(name, "extra", self.extra, Extra)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
         if self.min is not None and type(self.min.value) is not int:
             raise TypeError(f"{name}.min: expected int, got {type(self.min.value).__name__}")
@@ -341,7 +376,11 @@ class Date(Shape):
     max: Max | None = None
     choices: Choices | None = None
     placeholder: Placeholder | None = None
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
         name = type_name(self)
@@ -350,7 +389,7 @@ class Date(Shape):
         check_opt(name, "max", self.max, Max)
         check_opt(name, "choices", self.choices, Choices)
         check_opt(name, "placeholder", self.placeholder, Placeholder)
-        check_opt(name, "extra", self.extra, Extra)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
         if self.min is not None and type(self.min.value) is not date:
             raise TypeError(f"{name}.min: expected date, got {type(self.min.value).__name__}")
@@ -417,7 +456,11 @@ class Time(Shape):
     max: Max | None = None
     choices: Choices | None = None
     placeholder: Placeholder | None = None
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
         name = type_name(self)
@@ -426,7 +469,7 @@ class Time(Shape):
         check_opt(name, "max", self.max, Max)
         check_opt(name, "choices", self.choices, Choices)
         check_opt(name, "placeholder", self.placeholder, Placeholder)
-        check_opt(name, "extra", self.extra, Extra)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
         if self.min is not None and type(self.min.value) is not time:
             raise TypeError(f"{name}.min: expected time, got {type(self.min.value).__name__}")
@@ -495,10 +538,15 @@ class Time(Shape):
 @dataclass(frozen=True, kw_only=True)
 class Bool(Shape):
     pytype: ClassVar[type] = bool
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
-        check_opt(type_name(self), "extra", self.extra, Extra)
+        name = type_name(self)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
     def _check(self, value) -> None:
         if type(value) is not bool:
@@ -508,10 +556,15 @@ class Bool(Shape):
 @dataclass(frozen=True, kw_only=True)
 class NoneShape(Shape):
     pytype: ClassVar[type] = type(None)
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
-        check_opt(type_name(self), "extra", self.extra, Extra)
+        name = type_name(self)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
     def _check(self, value) -> None:
         if value is not None:
@@ -524,7 +577,11 @@ class List(Shape):
     item: tuple[Shape, ...]
     min: Min | None = None
     max: Max | None = None
-    extra: Extra | None = None
+    _extras: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
         name = type_name(self)
@@ -540,7 +597,7 @@ class List(Shape):
 
         check_opt(name, "min", self.min, Min)
         check_opt(name, "max", self.max, Max)
-        check_opt(name, "extra", self.extra, Extra)
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
         if self.min is not None and type(self.min.value) is not int:
             raise TypeError(f"{name}.min: expected int, got {type(self.min.value).__name__}")

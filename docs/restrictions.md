@@ -137,6 +137,36 @@ field atoms cannot apply to list items
 
 List items have type constraints but no independent field presentation.
 
+## Un-namespaced `Extra` key
+
+```text
+Extra.key must be namespaced ('package.name'), got 'color'
+Extra.key must not be empty
+Extra.key must be str, got int
+Extra.value must be str, got int
+```
+
+An `Extra` key is the coordinate of a value the core stores and never reads, so
+provenance is the only thing it can enforce: the dot names the owning package,
+and several wrappers annotating one field stay out of each other's way. Beyond
+its type the value is unconstrained — an empty value is legal, and what it means
+belongs to the wrapper that wrote it.
+
+## Hand-built extras that are not a mapping
+
+```text
+Int._extras must not repeat keys
+Int._extras must be tuple, got dict
+Int._extras: expected a (key, value) pair of str, got 'a.x'
+```
+
+Compilation merges extras by key, where a repeat is layering and the outer atom
+wins. A shape constructed directly has no layers to resolve: its pairs are a
+mapping, and a repeated key is a broken one. Storage is a sorted tuple, not a
+dict, because the shapes are frozen and hashable and their equality must not
+depend on the order the atoms were written in; `extras` rebuilds the dict on
+access.
+
 ## `datetime`
 
 ```text

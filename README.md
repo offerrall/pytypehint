@@ -92,6 +92,10 @@ Everything public is exported from `pytypehint`:
   `IsPassword`, `Rows`, `Extra`, `OptionalToggle`;
 - `MISSING`.
 
+`Extra(key, value)` takes a namespaced key (`"package.name"`) and any string
+value; a shape merges every `Extra` on its hint into a read-only `extras`
+dictionary that the core stores and never reads.
+
 Start with [the design principles](docs/philosophy.md), then read
 [build](docs/build.md), [resolve](docs/resolve.md), [defaults](docs/defaults.md),
 [vocabulary](docs/vocabulary.md), [atoms](docs/atoms.md),

@@ -39,9 +39,12 @@ def test_atom_table_maps_each_atom_type_to_exactly_one_field(pytype):
         f"({', '.join(duplicates)}); bridge._atoms_of would keep only the last "
         f"and silently ignore the rest")
 
-    assert len(table) == len(atom_fields), (
+    # Extra is the one atom with no field hinted `Extra | None`: it merges into
+    # `_extras`, which bridge._atoms_of appends to the table by hand.
+    expected = len(atom_fields) + (1 if Extra in table else 0)
+    assert len(table) == expected, (
         f"{shape_cls.__name__}: table has {len(table)} entries for "
-        f"{len(atom_fields)} atom-hinted fields — an entry was overwritten")
+        f"{expected} atom-hinted fields — an entry was overwritten")
 
 
 # ------------------------------------------------------- docs/atoms.md matrix
@@ -113,7 +116,7 @@ _TYPE_ATOMS = {
     Rows: Rows(2),
     IsPassword: IsPassword(),
     IsPathFile: IsPathFile(extensions=(".txt",)),
-    Extra: Extra("e"),
+    Extra: Extra("pkg.k", "e"),
 }
 
 # docs/atoms.md, "Accepted atoms" table. Each documented atom maps to the full
@@ -129,7 +132,7 @@ _MATRIX = [
         Step: (Step(1),),
         Slider: (Min(0), Max(10), Slider()),
         Placeholder: (Placeholder("p"),),
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("float", float, _float_hint, {
         Min: (Min(0.0),),
@@ -138,7 +141,7 @@ _MATRIX = [
         Step: (Step(1.0),),
         Slider: (Min(0.0), Max(10.0), Slider()),
         Placeholder: (Placeholder("p"),),
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("str", str, _str_hint, {
         Min: (Min(0),),
@@ -149,32 +152,32 @@ _MATRIX = [
         IsPassword: (IsPassword(),),
         Rows: (Rows(2),),
         Placeholder: (Placeholder("p"),),
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("date", date, _date_hint, {
         Min: (Min(date(2000, 1, 1)),),
         Max: (Max(date(2030, 1, 1)),),
         Choices: (Choices(values=(date(2020, 1, 1),)),),
         Placeholder: (Placeholder("p"),),
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("time", time, _time_hint, {
         Min: (Min(time(0, 0)),),
         Max: (Max(time(23, 0)),),
         Choices: (Choices(values=(time(12, 0),)),),
         Placeholder: (Placeholder("p"),),
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("list", list, _list_hint, {
         Min: (Min(0),),
         Max: (Max(10),),
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("bool", bool, _bool_hint, {
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("NoneType", type(None), _none_hint, {
-        Extra: (Extra("e"),),
+        Extra: (Extra("pkg.k", "e"),),
     }),
     ("enum", None, _enum_hint, {}),
     ("dataclass", None, _dataclass_hint, {}),
@@ -207,7 +210,9 @@ def test_documented_atom_is_accepted(kind, pytype, hint_of, atom_cls, meta):
 
     shape = next(s for s in field.shape if s.pytype is pytype)
     attribute = bridge._VOCABULARY[pytype][1][atom_cls]
-    assert getattr(shape, attribute) == meta[-1]
+    # Extra is stored merged, so the atom does not survive as itself.
+    expected = (((meta[-1].key, meta[-1].value),) if atom_cls is Extra else meta[-1])
+    assert getattr(shape, attribute) == expected
 
 
 @pytest.mark.parametrize("kind, hint_of, atom", list(_rejected_cases()))
