@@ -2,15 +2,26 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pytypehint.svg)](https://pypi.org/project/pytypehint/)
 
-`pytypehint` compiles Python type hints into strict, inspectable schemas. A
-hint carries everything there is to know about a field — its type, its limits,
-and its presentation — so the dataclass is the single source of truth: the
-core validates plain input data, fills fresh defaults and constructs dataclass
-instances; wrapper authors read the same schema to render controls, coerce
-external input and execute functions themselves. What the core hands them is
-raw, inspectable structure, never an opinion about it: interpretive
-conveniences belong to wrappers and to intermediate packages built on the core.
-Stdlib only; Python 3.11+; `py.typed` included.
+`pytypehint` compiles standard Python type hints into strict, inspectable schemas.
+
+Your code remains ordinary Python:
+
+* **No custom models, decorators, mutation, registration, or runtime hooks.**
+* **Your dataclasses remain untouched and work without `pytypehint`.**
+* **The library only observes them from the outside and compiles a separate schema.**
+
+The dataclass is the single source of truth:
+
+* types come from type hints;
+* constraints and presentation come from `Annotated`;
+* defaults are validated and rematerialized fresh;
+* plain input is validated and converted into dataclass instances.
+
+Wrappers inspect the same schema to render controls, coerce external input, generate interfaces, or execute functions. The core never imposes those policies.
+
+**Standard Python in. Raw, strict structure out.**
+
+Stdlib only. Python 3.11+. `py.typed` included.
 
 ```bash
 pip install pytypehint
@@ -49,16 +60,25 @@ search(**kwargs)  # execution belongs to the caller
 
 - Exact types: `type(value) is T`; the core never coerces.
 - Data enters as dictionaries and lists; dataclass instances leave through `build`.
-- Defaults are certified at compilation and rematerialized fresh per missing key.
-- Invalid constraints fail while compiling the schema.
+- Defaults are certified at compilation and rematerialized per missing key.
+  Immutable scalar values and enum members may be reused; lists and dataclass
+  instances are reconstructed. A `default_factory` runs during certification
+  and again whenever its missing value is served.
+- Invalid atom combinations and contradictions the core can determine exactly
+  fail while compiling the schema. The core does not attempt a general
+  satisfiability proof across unrelated constraints.
 - Errors retain the complete field and list-index path, as the message text and
   as data: `SchemaTypeError` and `SchemaValueError` carry `path` and `leaf`, and
   subclass `TypeError` and `ValueError`.
 - Notation atoms are stored and cross-checked but never affect validation;
   presentation belongs to the wrapper.
 - `Struct`, `Field` and `Signature` compare by identity; compile once and share.
-- `build` validates the input once and constructs directly; the cost is linear.
-- `resolve` validates and fills defaults without constructing nested dictionaries.
+- `build` validates supplied input values once and then constructs directly.
+  Missing defaults are materialized and validated at their own depth.
+- `resolve` validates the supplied tree and fills defaults for missing fields at
+  the level being resolved. A supplied nested dataclass dictionary remains a
+  dictionary and is not recursively expanded with that dataclass's defaults;
+  `build` fills those defaults while constructing the nested instance.
 - `Signature.build` returns constructed keyword arguments and never invokes the function.
 
 ## Vocabulary
@@ -92,9 +112,13 @@ Everything public is exported from `pytypehint`:
   `IsPassword`, `Rows`, `Extra`, `OptionalToggle`;
 - `MISSING`.
 
-`Extra(key, value)` takes a namespaced key (`"package.name"`) and any string
-value; a shape merges every `Extra` on its hint into a read-only `extras`
-dictionary that the core stores and never reads.
+`Extra(key, value)` takes a key containing a namespace separator
+(`"package.name"`; a dot is required) and any string value, including an empty
+string. A shape merges every `Extra` on its hint by key; the rightmost/outermost
+value wins for a repeated key. Internally the pairs are sorted and immutable.
+The `extras` property returns a fresh `dict[str, str]` on every access, so callers
+may modify that snapshot without changing the shape. The core stores these
+entries but never interprets them.
 
 Start with [the design principles](docs/philosophy.md), then read
 [build](docs/build.md), [resolve](docs/resolve.md), [defaults](docs/defaults.md),
