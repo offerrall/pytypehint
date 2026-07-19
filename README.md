@@ -60,6 +60,9 @@ search(**kwargs)  # execution belongs to the caller
 
 - Exact types: `type(value) is T`; the core never coerces.
 - Data enters as dictionaries and lists; dataclass instances leave through `build`.
+- A union routes by the exact runtime type of the value. Where two options share
+  that type — `list[str] | list[int]`, `A | B` — the caller names one; the core
+  never guesses from the contents, from the option order, or by trying them.
 - Defaults are certified at compilation and rematerialized per missing key.
   Immutable scalar values and enum members may be reused; lists and dataclass
   instances are reconstructed. A `default_factory` runs during certification
@@ -96,7 +99,21 @@ search(**kwargs)  # execution belongs to the caller
 | `list[X]` | `List` | list; nesting and union items supported |
 | dataclass | `Struct` | dictionary; `build` constructs it |
 | `A \| B` | tuple of shapes | exact scalar type or routed dataclass dictionary |
+| `list[str] \| list[int]` | tuple of shapes | `{"$type": "list[str]", "$value": [...]}` |
 | `Literal[...]` | `Int` or `Str` with `Choices` | homogeneous `int` or `str` literals |
+
+Python allows `list[str | int]` and `list[str] | list[int]`, and they mean
+different things. The core keeps both, and asks for a discriminator only where
+the value cannot supply one:
+
+```python
+mixed: list[str | int]          # {"mixed": ["a", 1, "b", 2]}
+either: list[str] | list[int]   # {"either": {"$type": "list[str]", "$value": ["a", "b"]}}
+```
+
+Every element of `mixed` routes by its own exact type. `either` chooses one
+option for the whole list, and both options arrive as a `list`, so the caller
+names the one it meant. See [build.md](docs/build.md).
 
 ## Public API
 

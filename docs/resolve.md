@@ -26,5 +26,7 @@ example, to move an uploaded file or inject request context. Most standalone
 callers should use `build`.
 
 For a dataclass union, `resolve` validates `$type` and preserves it. `build`
-removes the discriminator when constructing the selected class. Input dataclass
-instances are rejected by both APIs.
+removes the discriminator when constructing the selected class. The same holds
+for the `$type`/`$value` wrapper of [build.md](build.md): `resolve` returns the
+wrapper as it was given, and `build` unwraps it. Input dataclass instances are
+rejected by both APIs.

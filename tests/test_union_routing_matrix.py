@@ -256,10 +256,21 @@ def test_optional_list_accepts_list_and_none():
     assert struct_of(OptList).resolve({"v": None}) == {"v": None}
 
 
-def test_two_list_arms_are_duplicate_types():
+def test_two_list_arms_route_through_the_discriminated_wrapper():
     @dataclass
     class M:
-        v: list[int] | list[str] = None
+        v: list[int] | list[str]
+
+    schema = struct_of(M)
+    assert schema.build({"v": {"$type": "list[str]", "$value": ["a"]}}).v == ["a"]
+    with pytest.raises(TypeError, match="ambiguous list: field accepts list.int. | list.str."):
+        schema.resolve({"v": [1]})
+
+
+def test_two_indistinguishable_list_arms_are_duplicate_types():
+    @dataclass
+    class M:
+        v: list[Annotated[int, Min(0)]] | list[Annotated[int, Max(9)]] = None
 
     with pytest.raises(ValueError, match="duplicate option types in shape"):
         struct_of(M)

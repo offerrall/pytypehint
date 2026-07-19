@@ -48,6 +48,29 @@ class Shape:
     def _check(self, value) -> None:
         raise NotImplementedError(f"{type(self).__name__} must implement check")
 
+    # Stable, readable name for this option. Routing uses the runtime type;
+    # when two options share one, this is what tells them apart — as the value
+    # of "$type" in the discriminated wrapper and in the messages that offer it.
+    # Scalars are their type name, dataclasses and enums their class name, and
+    # a list spells out its items: list[str], list[int], list[list[str]].
+    def option_id(self) -> str:
+        return self.pytype.__name__
+
+
+# Two options are routable when their runtime types differ; when they coincide,
+# their identities must differ so a discriminator can name one of them. Options
+# with different runtime types never need distinct identities: two enums that
+# share a class name still route by their exact member type.
+def duplicate_options(shapes) -> bool:
+    seen: dict[type, set[str]] = {}
+    for shape in shapes:
+        ids = seen.setdefault(shape.pytype, set())
+        option_id = shape.option_id()
+        if option_id in ids:
+            return True
+        ids.add(option_id)
+    return False
+
 
 @dataclass(frozen=True, kw_only=True)
 class Int(Shape):
@@ -570,6 +593,9 @@ class NoneShape(Shape):
         if value is not None:
             raise SchemaTypeError(f"expected None, got {type(value).__name__}")
 
+    def option_id(self) -> str:
+        return "None"
+
 
 @dataclass(frozen=True, kw_only=True)
 class List(Shape):
@@ -589,8 +615,7 @@ class List(Shape):
         if type(self.item) is not tuple or not self.item or any(
                 not isinstance(item, Shape) for item in self.item):
             raise TypeError(f"{name}.item must be a non-empty tuple of shapes")
-        pytypes = [item.pytype for item in self.item]
-        if len(set(pytypes)) != len(pytypes):
+        if duplicate_options(self.item):
             raise ValueError(f"{name}.item has duplicate option types")
         if len(self.item) == 1 and isinstance(self.item[0], NoneShape):
             raise TypeError(f"{name}.item cannot be NoneShape")
@@ -620,6 +645,9 @@ class List(Shape):
         if (self.min is not None and self.max is not None
                 and cast(int, self.min.value) > cast(int, self.max.value)):
             raise ValueError(f"{name}: empty range ({self.min.value}..{self.max.value})")
+
+    def option_id(self) -> str:
+        return f"list[{' | '.join(item.option_id() for item in self.item)}]"
 
     def _check(self, value) -> None:
         self._check_length(value)

@@ -35,6 +35,23 @@ Field 'x': None must be accompanied by another option
 
 `None` expresses optionality; it needs a real value option.
 
+## Option identity
+
+A union routes an incoming value by its exact outer type. When two options share
+that type, the value alone cannot select one, and the caller names it. The name
+is the option's identity: a stable, readable string the core derives from the
+compiled shape, never from `repr()`.
+
+| Shape | Identity |
+|---|---|
+| scalar | its type name: `int`, `float`, `str`, `bool`, `date`, `time` |
+| `NoneShape` | `None` |
+| enum, dataclass | the class name: `Role`, `Fast` |
+| `List` | its items spelled out: `list[str]`, `list[int \| None]`, `list[list[str]]` |
+
+`Shape.option_id()` returns it. Dataclass options use it as `$type` inline;
+everything else uses it inside the wrapper of [build.md](build.md).
+
 ## Duplicate option types in a union
 
 ```text
@@ -42,21 +59,25 @@ Field 'x': duplicate option types in shape
 List.item has duplicate option types
 ```
 
-Every option of a union must compile to a distinct type. A union routes an
-incoming value by its exact outer type, so two options that compile to the same
-type are unroutable: given `[]`, `list[int] | list[str]` has no answer, and both
-answers are wrong half the time. The core could guess from the contents, but an
-empty container carries no evidence, and guessing would trade the exact error
-coordinates of [build.md](build.md) for a heuristic that is confident and
-sometimes wrong.
+Two options may share a runtime type — that is what the discriminator is for.
+They may not also share an identity, because then there is nothing left to name.
 
 `Literal` counts as its base type, so `Literal["a", "b"] | str` collides: both
-compile to `Str`. So does `Annotated[int, Min(0)] | Annotated[int, Max(9)]` —
-atoms narrow a type, they do not create one.
+compile to `Str` and both are identified as `str`. So does
+`Annotated[int, Min(0)] | Annotated[int, Max(9)]` — atoms narrow a type, they do
+not create one — and so does
+`list[Annotated[int, Min(0)]] | list[Annotated[int, Max(9)]]`, one level down.
 
-Two ways out. Mixed items that are genuinely one field become one option:
-`list[int | str]`. Alternatives that are genuinely exclusive become dataclasses
-and route by name with `$type`:
+The core does not resolve such a pair by reading the value. Given `[]`,
+`list[int] | list[str]` has no answer in the data, and both answers are wrong
+half the time; given `[1, 2]` the answer is only in the contents, and reading
+them would trade the exact error coordinates of [build.md](build.md) for a
+heuristic that is confident and sometimes wrong. So the caller supplies the
+answer, or there is no answer at all.
+
+Ways out of a real collision. Mixed items that are genuinely one field become one
+option: `list[int | str]`. Alternatives that are genuinely exclusive become
+dataclasses and route by name with `$type`:
 
 ```python
 from dataclasses import dataclass

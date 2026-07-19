@@ -9,9 +9,38 @@ lists and unions remain valid schemas; presentation belongs to the wrapper.
 ## `build` is a one-way boundary
 
 External data enters as dictionaries and lists; constructed dataclasses leave.
-A dictionary in a dataclass union uses `$type` because it carries no Python type.
+A dictionary in a dataclass union uses `$type` because it carries no Python type;
+options that share a runtime type move into a `$type`/`$value` wrapper for the
+same reason, since the type they arrive as names more than one of them.
 Defaults belong to the author and may be instances; input may not. The core
 constructs values, while the caller decides how to use or execute them.
+
+## Restrict as little of Python as possible
+
+Standard Python is the source of truth. A valid annotation that can be
+represented strictly and unambiguously is admitted, even when routing it takes
+more than the value itself.
+
+`list[str] | list[int]` is such an annotation. Python allows it, and it means
+something different from `list[str | int]`. The core once rejected it for a
+reason that was about the core, not about the hint: both options arrive as a
+`list`, so `type(value)` cannot pick one. That is a missing piece of
+information, not an invalid type.
+
+When a value carries enough information to select an option, the core selects
+it and asks the caller for nothing. When it does not, the caller supplies the
+selection explicitly — `{"$type": ..., "$value": ...}` — and the core still
+never guesses. It does not read the contents of a list to infer an option, does
+not try options in order, and does not accept the first one that happens to
+validate: those would trade one exact answer for a heuristic that is confident
+and sometimes wrong. Either the input determines the option or the caller names
+it.
+
+A default is the one place where no caller can name anything: it is a real
+Python object authored in the schema, not input data. There the union means what
+it means in Python — the value inhabits at least one option — and
+rematerialization is identical through any option it inhabits, because each
+element is rebuilt by its own exact type. The choice is an outcome, not a guess.
 
 ## A compiled schema is valid
 

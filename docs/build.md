@@ -73,6 +73,52 @@ value: $type: expected str, got int
 cannot collide with a dataclass field because fields must be identifiers.
 Discrimination works at every nesting depth and in union-valued list items.
 
+## Other unions that share an input type: `$type` and `$value`
+
+A dictionary has room for an inline `$type`; a list does not. When two options
+that are not dataclasses arrive as the same runtime type, the value moves into a
+wrapper that makes room for the discriminator:
+
+```python
+from dataclasses import dataclass
+from pytypehint import struct_of
+
+@dataclass
+class Query:
+    terms: list[str] | list[int]
+
+data = {"terms": {"$type": "list[str]", "$value": ["a", "b"]}}
+struct_of(Query).resolve(data)   # returns data unchanged
+struct_of(Query).build(data)     # Query(terms=['a', 'b']); consumes the wrapper
+```
+
+`$type` is the option identity of [restrictions.md](restrictions.md) —
+`list[str]`, `list[int]`, `list[list[str]]`. It selects one option, and only
+then is `$value` validated against that option. The wrapper carries those two
+keys and nothing else.
+
+The wrapper is required exactly where routing is ambiguous, and accepted only
+there. `int | str`, `list[str | int]` and `list[int] | None` route themselves by
+exact type and take no discriminator; on them a wrapper is just a foreign
+dictionary. Where a dataclass option sits beside ambiguous ones, the reserved
+`$value` key tells the two dictionary formats apart.
+
+Failures keep their coordinates, including `$value` and the index below it:
+
+```text
+terms: ambiguous list: field accepts list[str] | list[int] — wrap it as {"$type": ..., "$value": ...} naming the option
+terms: $type: not a choice: 'list[float]', expected one of ('list[str]', 'list[int]')
+terms: $type: expected str, got int
+terms: missing key(s): $value
+terms: unexpected key(s): note
+terms: $value: [1]: expected str, got int
+```
+
+A default is a value, not input data: it is a real Python object that no caller
+can wrap, so it needs no discriminator. `list[str] | list[int]` accepts
+`default_factory=list`, and the empty list is served fresh per missing key like
+any other.
+
 ## Errors and constructors
 
 Validation errors accumulate field names and list indexes:

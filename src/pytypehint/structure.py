@@ -2,9 +2,14 @@ from dataclasses import dataclass, field
 
 from pytypehint.atoms import Label, Description, OptionalToggle
 from pytypehint.errors import SchemaTypeError, SchemaValueError, _prefixed
-from pytypehint.shapes import NoneShape, List, Shape
+from pytypehint.shapes import NoneShape, List, Shape, duplicate_options
 from pytypehint.utils import MISSING, check_opt
-from pytypehint.validation import check_options_value
+from pytypehint.validation import accepted, check_options_value, value_branch
+
+# Reserved keys of the discriminated wrapper. Neither can collide with a
+# dataclass field: field names must be identifiers.
+_TYPE = "$type"
+_VALUE = "$value"
 
 
 # A factory remains callable so each missing key receives a fresh product.
@@ -116,8 +121,7 @@ class Field:
         object.__setattr__(self, "_recipe", self.default)
 
         if all(_ready(s) for s in self.shape):
-            pytypes = [s.pytype for s in self.shape]
-            if len(pytypes) != len(set(pytypes)):
+            if duplicate_options(self.shape):
                 raise ValueError(f"Field {self.name!r}: duplicate option types in shape")
             object.__setattr__(self, "default", _certify(self))
             object.__setattr__(self, "_deferred", False)
@@ -148,8 +152,65 @@ def _check_discriminators(field_name: str, shapes) -> None:
             _check_discriminators(field_name, shape.item)
 
 
-def _accepted(shapes) -> str:
-    return " | ".join(s.pytype.__name__ for s in shapes)
+# Input data routes by the runtime type it arrives as, and every dataclass
+# arrives as a dict.
+def _data_type(shape) -> type:
+    return dict if type(shape) is Struct else shape.pytype
+
+
+# Options that share one input type and are not dataclasses. Dataclasses are
+# left out: several of them are also unroutable, but a dict has room for an
+# inline "$type" and keeps the format it has always had. Everything else needs
+# the value moved into a wrapper to make room for the discriminator.
+def _wrapped_options(shapes) -> tuple:
+    groups: dict[type, list] = {}
+    for shape in shapes:
+        groups.setdefault(_data_type(shape), []).append(shape)
+    return tuple(shape for data_type, group in groups.items()
+                 for shape in group
+                 if len(group) > 1 and data_type is not dict)
+
+
+# A wrapper is a dict, and so is a dataclass payload. "$value" separates them:
+# it is reserved, and a dataclass can never carry it. Without dataclass options
+# every dict is a wrapper attempt, so a missing "$type" reports as one.
+def _is_wrapped(shapes, wrapped, value) -> bool:
+    return bool(wrapped) and (
+        _VALUE in value or not any(type(shape) is Struct for shape in shapes))
+
+
+def _wrapped_shape(wrapped, value):
+    names = tuple(shape.option_id() for shape in wrapped)
+
+    if _TYPE not in value:
+        joined = " | ".join(names)
+        raise SchemaTypeError(
+            f'ambiguous value: field accepts {joined} — wrap it as '
+            f'{{"{_TYPE}": ..., "{_VALUE}": ...}} naming the option')
+
+    discriminator = value[_TYPE]
+    # The discriminator is a coordinate of its own, so it travels in the path.
+    if type(discriminator) is not str:
+        raise SchemaTypeError(
+            f"expected str, got {type(discriminator).__name__}", (_TYPE,))
+    if discriminator not in names:
+        raise SchemaValueError(
+            f"not a choice: {discriminator!r}, expected one of {names}", (_TYPE,))
+
+    extra = sorted(str(k) for k in value if k not in (_TYPE, _VALUE))
+    if extra:
+        raise SchemaTypeError(f"unexpected key(s): {', '.join(extra)}")
+    if _VALUE not in value:
+        raise SchemaTypeError(f"missing key(s): {_VALUE}")
+
+    # The discriminator selected one option; the payload is validated against
+    # that option alone, one level deeper.
+    shape = wrapped[names.index(discriminator)]
+    try:
+        _data_shape((shape,), value[_VALUE])
+    except (TypeError, ValueError) as e:
+        raise _prefixed(e, (_VALUE,)) from e
+    return shape
 
 
 def _data_shape(shapes, value):
@@ -158,30 +219,42 @@ def _data_shape(shapes, value):
         if type(value) is shape.cls:
             raise SchemaTypeError(f"expected dict, got {shape.cls.__name__} instance")
 
+    wrapped = _wrapped_options(shapes)
+
     if type(value) is dict:
+        if _is_wrapped(shapes, wrapped, value):
+            return _wrapped_shape(wrapped, value)
         if not structs:
-            raise SchemaTypeError(f"expected {_accepted(shapes)}, got dict")
+            raise SchemaTypeError(f"expected {accepted(shapes)}, got dict")
         if len(structs) == 1:
             shape = structs[0]
             shape._check_kwargs(value)
             return shape
 
         names = tuple(shape.cls.__name__ for shape in structs)
-        if "$type" not in value:
+        if _TYPE not in value:
             joined = " | ".join(names)
             raise SchemaTypeError(
-                f'ambiguous dict: field accepts {joined} — add "$type" naming the variant')
-        discriminator = value["$type"]
-        # The discriminator is a coordinate of its own, so it travels in the path.
+                f'ambiguous dict: field accepts {joined} — add "{_TYPE}" naming the variant')
+        discriminator = value[_TYPE]
         if type(discriminator) is not str:
             raise SchemaTypeError(
-                f"expected str, got {type(discriminator).__name__}", ("$type",))
+                f"expected str, got {type(discriminator).__name__}", (_TYPE,))
         if discriminator not in names:
             raise SchemaValueError(
-                f"not a choice: {discriminator!r}, expected one of {names}", ("$type",))
+                f"not a choice: {discriminator!r}, expected one of {names}", (_TYPE,))
         shape = next(shape for shape in structs if shape.cls.__name__ == discriminator)
-        shape._check_kwargs({k: v for k, v in value.items() if k != "$type"})
+        shape._check_kwargs({k: v for k, v in value.items() if k != _TYPE})
         return shape
+
+    # A bare value whose type is shared by several options carries no evidence
+    # of which one it is, and the core does not read its contents to invent any.
+    group = [shape for shape in wrapped if _data_type(shape) is type(value)]
+    if group:
+        joined = " | ".join(shape.option_id() for shape in group)
+        raise SchemaTypeError(
+            f'ambiguous {type(value).__name__}: field accepts {joined} — wrap it as '
+            f'{{"{_TYPE}": ..., "{_VALUE}": ...}} naming the option')
 
     for shape in shapes:
         if type(value) is shape.pytype and type(shape) is not Struct:
@@ -195,7 +268,7 @@ def _data_shape(shapes, value):
             else:
                 shape._check(value)
             return shape
-    raise SchemaTypeError(f"expected {_accepted(shapes)}, got {type(value).__name__}")
+    raise SchemaTypeError(f"expected {accepted(shapes)}, got {type(value).__name__}")
 
 
 # check_present=False is used only by the build path, whose outer resolve already
@@ -269,11 +342,9 @@ def _remat_shape(shape, value):
 
 
 def _remat_options(shapes, value):
-    for s in shapes:
-        if type(value) is s.pytype:
-            return _remat_shape(s, value)
+    shape = value_branch(shapes, value)
     # Certification reports the exact type error for unmatched defaults.
-    return value
+    return value if shape is None else _remat_shape(shape, value)
 
 
 def _remat(field):
@@ -292,7 +363,7 @@ def _build_value(shape, value, path):
         # input dict during construction is undefined behaviour and the author's
         # responsibility, exactly like default purity: nothing here watches for it.
         try:
-            payload = {k: v for k, v in value.items() if k != "$type"}
+            payload = {k: v for k, v in value.items() if k != _TYPE}
             resolved = shape._resolve_for_build(payload)
         except (TypeError, ValueError) as e:
             raise _prefixed(e, path) from e
@@ -309,7 +380,7 @@ def _route_dict(shapes, value):
     structs = [shape for shape in shapes if type(shape) is Struct]
     if len(structs) == 1:
         return structs[0]
-    shape = next((s for s in structs if s.cls.__name__ == value.get("$type")), None)
+    shape = next((s for s in structs if s.cls.__name__ == value.get(_TYPE)), None)
     if shape is None:
         raise AssertionError("validated dict matches no struct option")
     return shape
@@ -319,10 +390,18 @@ def _build_options(shapes, value, path):
     # Rematerialized instance defaults have already passed schema validation.
     if any(type(shape) is Struct and type(value) is shape.cls for shape in shapes):
         return value
+    wrapped = _wrapped_options(shapes)
     if type(value) is dict:
+        if _is_wrapped(shapes, wrapped, value):
+            # The wrapper is packaging, not data: only its payload is built.
+            shape = next((s for s in wrapped if s.option_id() == value.get(_TYPE)), None)
+            if shape is None:
+                raise AssertionError("validated wrapper matches no shape option")
+            return _build_value(shape, value[_VALUE], (*path, _VALUE))
         shape = _route_dict(shapes, value)
     else:
-        shape = next((shape for shape in shapes if type(value) is shape.pytype), None)
+        # A filled default arrives as a value, not as wrapped data.
+        shape = value_branch(shapes, value)
         if shape is None:
             raise AssertionError("validated value matches no shape option")
     return _build_value(shape, value, path)

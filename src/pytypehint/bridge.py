@@ -9,7 +9,10 @@ from typing import Annotated, Literal, Union, get_args, get_origin, get_type_hin
 
 from pytypehint import atoms
 from pytypehint.atoms import Choices, Description, Extra, Label, OptionalToggle
-from pytypehint.shapes import Bool, Date, EnumShape, Float, Int, List, NoneShape, Shape, Str, Time
+from pytypehint.shapes import (
+    Bool, Date, EnumShape, Float, Int, List, NoneShape, Shape, Str, Time,
+    duplicate_options,
+)
 from pytypehint.signature import Signature
 from pytypehint.structure import Field, Struct, _Factory, _certify
 from pytypehint.utils import MISSING
@@ -86,19 +89,22 @@ def _hint_label(hint) -> str:
     return hint.__name__ if isinstance(hint, type) else str(hint).replace("typing.", "")
 
 
-# Two hints can read as different options and still compile to one pytype:
-# Literal['a'] and str both become Str. A list item routes by its exact runtime
-# type, so such a pair is unroutable. List.item reports the collision by shape,
-# which cannot name the hints the author actually wrote — this can.
+# Two hints can read as different options and still compile to one shape:
+# Literal['a'] and str both become Str. Sharing a runtime type is not enough to
+# collide — list[str] and list[int] do, and a discriminator tells them apart —
+# but sharing the identity that discriminator would use leaves nothing to name.
+# List.item reports the collision by shape, which cannot name the hints the
+# author actually wrote — this can.
 def _reject_colliding_items(raw_options, item_options) -> None:
-    seen: dict[type, object] = {}
+    seen: dict[tuple[type, str], object] = {}
     for hint, shape in zip(raw_options, item_options):
-        if shape.pytype in seen:
+        key = (shape.pytype, shape.option_id())
+        if key in seen:
             raise ValueError(
-                f"list items: {_hint_label(seen[shape.pytype])} and {_hint_label(hint)} "
-                f"both compile to {shape.pytype.__name__} — merge them into one option, "
+                f"list items: {_hint_label(seen[key])} and {_hint_label(hint)} "
+                f"both compile to {shape.option_id()} — merge them into one option, "
                 f"or give each variant a dataclass and route with $type")
-        seen[shape.pytype] = hint
+        seen[key] = hint
 
 
 def _shape_of(opt, cache: dict) -> Shape:
@@ -262,8 +268,7 @@ def _validate_cache(cache: dict) -> None:
         for f in struct.fields:
             if not f._deferred:
                 continue
-            pytypes = [s.pytype for s in f.shape]
-            if len(pytypes) != len(set(pytypes)):
+            if duplicate_options(f.shape):
                 raise ValueError(f"Field {f.name!r}: duplicate option types in shape")
             object.__setattr__(f, "default", _certify(f))
             object.__setattr__(f, "_deferred", False)

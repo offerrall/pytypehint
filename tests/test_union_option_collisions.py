@@ -39,10 +39,17 @@ def test_literal_collides_with_its_base_type_on_the_field():
     assert str(error.value) == "Field 'x': duplicate option types in shape"
 
 
-def test_two_list_options_collide_on_the_field():
-    """docs/restrictions.md: 'given `[]`, `list[int] | list[str]` has no answer'."""
+def test_two_list_options_are_told_apart_by_their_identity():
+    """docs/restrictions.md: two options sharing a runtime type compile when their identities differ."""
+    f = _compile(list[int] | list[str]).fields[0]
+
+    assert [s.option_id() for s in f.shape] == ["list[int]", "list[str]"]
+
+
+def test_two_identical_list_options_still_collide_on_the_field():
+    """docs/restrictions.md: 'atoms narrow a type, they do not create one' — inside the item too."""
     with pytest.raises(ValueError) as error:
-        _compile(list[int] | list[str])
+        _compile(list[Annotated[int, Min(0)]] | list[Annotated[int, Max(9)]])
 
     assert str(error.value) == "Field 'x': duplicate option types in shape"
 

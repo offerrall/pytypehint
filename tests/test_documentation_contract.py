@@ -217,6 +217,58 @@ def test_documented_discriminator_failures(payload, message):
         struct_of(_Source).build(payload)
 
 
+# README "Vocabulary"; docs/vocabulary.md; docs/build.md "$type and $value".
+@dataclass
+class _Terms:
+    mixed: list[str | int]
+    either: list[str] | list[int]
+
+
+def test_a_union_item_and_a_union_of_lists_are_documented_as_different_things():
+    schema = struct_of(_Terms)
+    data = {"mixed": ["a", 1, "b", 2],
+            "either": {"$type": "list[str]", "$value": ["a", "b"]}}
+
+    assert schema.resolve(data) == data
+    assert schema.build(data) == _Terms(mixed=["a", 1, "b", 2], either=["a", "b"])
+
+
+@pytest.mark.parametrize("value, message", [
+    (["a"], r"ambiguous list: field accepts list\[str\] \| list\[int\]"),
+    ({"$type": "list[float]", "$value": []}, r"\$type: not a choice: 'list\[float\]'"),
+    ({"$type": 1, "$value": []}, r"\$type: expected str, got int"),
+    ({"$type": "list[str]"}, r"missing key\(s\): \$value"),
+    ({"$type": "list[str]", "$value": [], "note": 1}, r"unexpected key\(s\): note"),
+    ({"$type": "list[str]", "$value": ["a", 1]}, r"\$value: \[1\]: expected str, got int"),
+])
+def test_documented_wrapper_failures(value, message):
+    with pytest.raises((TypeError, ValueError), match=message):
+        struct_of(_Terms).build({"mixed": [], "either": value})
+
+
+# docs/restrictions.md "Option identity".
+@pytest.mark.parametrize("shape, option_id", [
+    (Int(), "int"),
+    (Str(), "str"),
+    (NoneShape(), "None"),
+    (EnumShape(cls=_Role), "_Role"),
+    (List(item=(Str(),)), "list[str]"),
+    (List(item=(Int(), NoneShape())), "list[int | None]"),
+    (List(item=(List(item=(Str(),)),)), "list[list[str]]"),
+])
+def test_option_identity_matches_the_documented_table(shape, option_id):
+    assert shape.option_id() == option_id
+
+
+def test_options_sharing_a_runtime_type_and_an_identity_are_still_rejected():
+    """docs/restrictions.md: 'they may not also share an identity'."""
+    model = make_dataclass("Indistinguishable", [
+        ("x", list[Annotated[int, Min(0)]] | list[Annotated[int, Max(9)]])])
+
+    with pytest.raises(ValueError, match=r"duplicate option types in shape"):
+        struct_of(model)
+
+
 def test_signature_build_constructs_kwargs_without_calling_the_function():
     calls = []
 
