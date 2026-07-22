@@ -11,7 +11,8 @@ is stored for wrappers and ignored by validation.
 | `Date`, `Time` | `Min`, `Max`, `Choices`, `Placeholder`, `Extra` |
 | `List` | `Min`, `Max` for length, `Extra` |
 | `Bool`, `NoneShape` | `Extra` |
-| `EnumShape`, dataclass (`Struct`) | none; annotate struct fields, not nesting |
+| `EnumShape` | `Extra` |
+| dataclass (`Struct`) | none; annotate struct fields, not nesting |
 | any field | `Label`, `Description` |
 | optional field (`X \| None`) | `OptionalToggle` |
 

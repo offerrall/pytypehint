@@ -5,8 +5,10 @@ from typing import Annotated, TypeAlias
 
 import pytest
 
-from pytypehint import Extra, signature_of, struct_of
-from pytypehint.shapes import Bool, Date, Float, Int, List, NoneShape, Str, Time
+from pytypehint import Extra, Min, signature_of, struct_of
+from pytypehint.shapes import (
+    Bool, Date, EnumShape, Float, Int, List, NoneShape, Str, Time,
+)
 
 
 def test_extra_construction_equality_and_hash():
@@ -157,7 +159,7 @@ def test_extras_do_not_change_validation_or_default_certification():
 
     with pytest.raises(
             TypeError,
-            match=r"Field 'value': default expected int, got str"):
+            match=r"value: default: expected int, got str"):
         struct_of(BadDefault)
 
 
@@ -171,7 +173,9 @@ def test_extras_apply_to_a_list_item_shape():
     assert shape.item[0].extras == {"a.x": "1"}
 
 
-def test_extra_is_rejected_on_enum_and_dataclass_metadata():
+def test_extra_is_accepted_on_enum_but_rejected_on_dataclass_metadata():
+    # Enum is a leaf shape and carries Extra like the other atoms; a nested
+    # dataclass stays closed — its fields are annotated, not its nesting.
     class Kind(Enum):
         A = "a"
 
@@ -184,14 +188,51 @@ def test_extra_is_rejected_on_enum_and_dataclass_metadata():
     struct_model = make_dataclass(
         "StructModel", [("value", Annotated[Nested, Extra("a.x", "1")])])
 
-    with pytest.raises(
-            TypeError,
-            match=r"unsupported metadata for enum: Extra\(key='a\.x', value='1'\)"):
-        struct_of(enum_model)
+    enum_shape = struct_of(enum_model).fields[0].shape[0]
+    assert type(enum_shape) is EnumShape
+    assert enum_shape.extras == {"a.x": "1"}
+
     with pytest.raises(
             TypeError,
             match=r"unsupported metadata for dataclass: Extra\(key='a\.x', value='1'\)"):
         struct_of(struct_model)
+
+
+def test_enum_merges_several_extras_and_still_rejects_other_atoms():
+    class Kind(Enum):
+        A = "a"
+
+    @dataclass
+    class Model:
+        value: Annotated[Kind, Extra("b.y", "2"), Extra("a.x", "1")]
+
+    shape = struct_of(Model).fields[0].shape[0]
+    assert type(shape) is EnumShape
+    # Merged by key and stored sorted, exactly as on scalar shapes.
+    assert shape.extras == {"a.x": "1", "b.y": "2"}
+    assert shape._extras == (("a.x", "1"), ("b.y", "2"))
+
+    @dataclass
+    class WithLimit:
+        value: Annotated[Kind, Extra("a.x", "1"), Min(0)]
+
+    with pytest.raises(TypeError, match=r"unsupported metadata for enum: Min\(value=0"):
+        struct_of(WithLimit)
+
+
+@pytest.mark.parametrize("broken, exc, msg", [
+    ({"a.x": "1"}, TypeError, r"^EnumShape\._extras must be tuple, got dict$"),
+    (("a.x",), TypeError,
+     r"^EnumShape\._extras: expected a \(key, value\) pair of str, got 'a\.x'$"),
+    ((("a.x", "1"), ("a.x", "2")), ValueError, r"^EnumShape\._extras must not repeat keys$"),
+    ((("a.x", 1),), TypeError, r"expected a \(key, value\) pair of str"),
+])
+def test_hand_built_enum_shape_rejects_a_broken_extras_mapping(broken, exc, msg):
+    class Kind(Enum):
+        A = "a"
+
+    with pytest.raises(exc, match=msg):
+        EnumShape(cls=Kind, _extras=broken)
 
 
 def test_an_unknown_atom_is_still_unsupported_metadata_next_to_extras():

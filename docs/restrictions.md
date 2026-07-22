@@ -223,6 +223,21 @@ value: must be naive (no tzinfo): 12:00:00+00:00
 Comparing aware times requires date and timezone context. The `Time` shape is
 explicitly naive.
 
+## Exclusive bound at a temporal edge
+
+```text
+Time: exclusive bound at 23:59:59.999999 leaves no valid time
+Time: exclusive bound at 00:00:00 leaves no valid time
+```
+
+An exclusive `Min` at `date.max`/`time.max`, or an exclusive `Max` at
+`date.min`/`time.min`, excludes the only value on that side of the bound and
+leaves the field unsatisfiable. `Date` and `Time` reject it at compile time,
+symmetrically. The analogous `Float` edge (`sys.float_info.max`) is deliberately
+left to run: it falls under the "no general satisfiability" doctrine of
+[philosophy.md](philosophy.md), where the core proves only the contradictions it
+can determine exactly.
+
 ## Non-finite float
 
 ```text
@@ -231,15 +246,20 @@ value: not finite: nan
 
 NaN and infinity do not obey ordinary finite range semantics.
 
-## Impure default
+## Invalid default
 
 ```text
+n: default: expected int, got str
 leaf: n: default: too large: 2, maximum 1
 ```
 
-Purity and determinism are the author's promise. Per-serving validation reports
-observable drift; other side effects cannot be diagnosed. See
-[defaults.md](defaults.md).
+A default that violates its own schema is reported with `"default"` as a path
+segment, the field's coordinates in front, and the violation as the leaf. One
+format covers both moments the same defect can surface: certification at compile
+time (the first line, from `struct_of`/`signature_of`) and per-serving
+rematerialization at runtime (the second, from `build`/`resolve`). Purity and
+determinism are the author's promise — per-serving validation reports observable
+drift; other side effects cannot be diagnosed. See [defaults.md](defaults.md).
 
 ## Unhinted `self` or `cls`
 

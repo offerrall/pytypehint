@@ -179,7 +179,9 @@ _MATRIX = [
     ("NoneType", type(None), _none_hint, {
         Extra: (Extra("pkg.k", "e"),),
     }),
-    ("enum", None, _enum_hint, {}),
+    ("enum", _Color, _enum_hint, {
+        Extra: (Extra("pkg.k", "e"),),
+    }),
     ("dataclass", None, _dataclass_hint, {}),
 ]
 
@@ -209,7 +211,10 @@ def test_documented_atom_is_accepted(kind, pytype, hint_of, atom_cls, meta):
     field = _field_of(hint_of(meta))
 
     shape = next(s for s in field.shape if s.pytype is pytype)
-    attribute = bridge._VOCABULARY[pytype][1][atom_cls]
+    # Extra maps to "_extras" on every shape, including EnumShape which lives
+    # outside bridge._VOCABULARY.
+    attribute = ("_extras" if atom_cls is Extra
+                 else bridge._VOCABULARY[pytype][1][atom_cls])
     # Extra is stored merged, so the atom does not survive as itself.
     expected = (((meta[-1].key, meta[-1].value),) if atom_cls is Extra else meta[-1])
     assert getattr(shape, attribute) == expected

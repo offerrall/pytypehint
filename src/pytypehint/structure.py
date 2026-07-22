@@ -425,6 +425,13 @@ def _certify(field):
             f"Field {field.name!r}: default could not be materialized: {e}") from e
     try:
         field._check_value(product)
+    except (SchemaTypeError, SchemaValueError) as e:
+        # Compile-time certification keeps the structured guarantee: the field
+        # name and "default" travel in the path as clean coordinates, the
+        # violation stays the leaf. The render matches the runtime serving path
+        # (`_resolve_fields`) exactly — one format for one concept.
+        raise type(e)(e.leaf, (field.name, "default", *e.path)) from e
     except (TypeError, ValueError) as e:
+        # A foreign TypeError/ValueError carries no structure to preserve.
         raise type(e)(f"Field {field.name!r}: default {e}") from e
     return product

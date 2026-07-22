@@ -264,3 +264,19 @@ def test_date_max_exclusive_at_min_edge_rejected():
 
 def test_date_min_inclusive_at_max_edge_compiles():
     Date(min=Min(date.max))
+
+
+def test_time_min_exclusive_at_max_edge_rejected():
+    with pytest.raises(ValueError,
+                       match="exclusive bound at 23:59:59.999999 leaves no valid time"):
+        Time(min=Min(time.max, exclusive=True))
+
+
+def test_time_max_exclusive_at_min_edge_rejected():
+    with pytest.raises(ValueError,
+                       match="exclusive bound at 00:00:00 leaves no valid time"):
+        Time(max=Max(time.min, exclusive=True))
+
+
+def test_time_min_inclusive_at_max_edge_compiles():
+    Time(min=Min(time.max))

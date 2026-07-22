@@ -272,7 +272,7 @@ def test_default_must_match_one_arm():
     class M:
         v: int | str = 1.5
 
-    with pytest.raises(TypeError, match=r"Field 'v': default expected int \| str, got float"):
+    with pytest.raises(TypeError, match=r"v: default: expected int \| str, got float"):
         struct_of(M)
 
 

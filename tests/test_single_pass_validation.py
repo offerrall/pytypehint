@@ -17,7 +17,7 @@ from pytypehint import structure
 
 
 def test_impure_nested_default_still_fails_with_the_documented_path():
-    """docs/restrictions.md, 'Impure default': 'leaf: n: default: too large: 2, maximum 1'.
+    """docs/restrictions.md, 'Invalid default': 'leaf: n: default: too large: 2, maximum 1'.
 
     The single-pass change removes the revalidation of *present* keys only.
     Absent keys are still rematerialized and validated at their own depth, which

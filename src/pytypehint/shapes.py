@@ -373,10 +373,15 @@ class Str(Shape):
 @dataclass(frozen=True, kw_only=True)
 class EnumShape(Shape):
     cls: type
+    _extras: tuple[tuple[str, str], ...] = ()
 
     @property
     def pytype(self) -> type:  # type: ignore[override]
         return self.cls
+
+    @property
+    def extras(self) -> dict[str, str]:
+        return dict(self._extras)
 
     def __post_init__(self):
         name = type_name(self)
@@ -386,6 +391,7 @@ class EnumShape(Shape):
             raise TypeError(f"{name}.cls: Flag enums are not supported (OR-combinable, not a closed set)")
         if len(list(self.cls)) == 0:
             raise ValueError(f"{name}.cls: enum has no members")
+        object.__setattr__(self, "_extras", _normalize_extras(name, self._extras))
 
     def _check(self, value) -> None:
         if type(value) is not self.cls:
@@ -505,6 +511,13 @@ class Time(Shape):
 
         if self.max is not None and self.max.value.tzinfo is not None:
             raise ValueError(f"{name}.max: must be naive (no tzinfo), got {self.max.value}")
+
+        # An exclusive bound at the clock's edge admits no time: there is no naive
+        # time before 00:00:00 or after 23:59:59.999999. Symmetric with Date.
+        if self.min is not None and self.min.exclusive and self.min.value == time.max:
+            raise ValueError(f"{name}: exclusive bound at {self.min.value} leaves no valid time")
+        if self.max is not None and self.max.exclusive and self.max.value == time.min:
+            raise ValueError(f"{name}: exclusive bound at {self.max.value} leaves no valid time")
 
         if self.min is not None and self.max is not None:
             empty = self.min.value > self.max.value or (

@@ -344,14 +344,14 @@ def test_a_default_matching_no_option_is_rejected_at_compilation():
         _compile(list[str] | list[int], field(default_factory=lambda: ["a", 1]))
 
     assert str(error.value) == (
-        "Field 'x': default matches no option: list[str] | list[int]")
+        "x: default: matches no option: list[str] | list[int]")
 
 
 def test_a_default_of_the_wrong_type_still_reports_the_type():
     with pytest.raises(SchemaTypeError) as error:
         _compile(list[str] | list[int], field(default=3))
 
-    assert str(error.value) == "Field 'x': default expected list, got int"
+    assert str(error.value) == "x: default: expected list, got int"
 
 
 def test_dataclass_list_defaults_are_rematerialized_per_serving():

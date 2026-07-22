@@ -170,7 +170,7 @@ def test_list_indexes_are_integers_not_text():
 
 
 def test_default_is_a_plain_segment():
-    """docs/restrictions.md, 'Impure default': 'leaf: n: default: too large: 2, maximum 1' — 'default' is a path segment, not part of the reason."""
+    """docs/restrictions.md, 'Invalid default': 'leaf: n: default: too large: 2, maximum 1' — 'default' is a path segment, not part of the reason."""
     with pytest.raises(SchemaValueError) as error:
         _build_impure_default()
 

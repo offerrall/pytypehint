@@ -38,6 +38,15 @@ def check_options_value(shapes, value) -> None:
         if any(_accepts(shape, value) for shape in candidates):
             return
         options = " | ".join(shape.option_id() for shape in candidates)
-        raise SchemaValueError(f"matches no option: {options}")
+        # The leaf names which options were tried; a note per candidate records
+        # why each rejected the value, so the failure is diagnosable without
+        # re-running the checks by hand. The main message is unchanged.
+        error = SchemaValueError(f"matches no option: {options}")
+        for shape in candidates:
+            try:
+                shape._check(value)
+            except (TypeError, ValueError) as cause:
+                error.add_note(f"as {shape.option_id()}: {cause}")
+        raise error
 
     raise SchemaTypeError(f"expected {accepted(shapes)}, got {type(value).__name__}")

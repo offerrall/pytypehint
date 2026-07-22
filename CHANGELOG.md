@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.0.4]
+
+- Enum fields now accept `Extra`, the same namespaced wrapper-notation channel
+  the other leaf shapes already carry. `EnumShape` gains `_extras` and a
+  read-only `extras` dict; any other atom on an enum still reports `unsupported
+  metadata for enum`. Dataclass (`Struct`) fields stay closed — annotate their
+  fields, not the nesting.
+- `Time` now rejects an exclusive bound at the clock's edge at compile time —
+  `Min(time.max, exclusive=True)` and `Max(time.min, exclusive=True)` — with
+  `exclusive bound at ... leaves no valid time`, symmetric with the `Date` edge.
+  These bounds previously compiled while admitting no value. `Float`'s analogous
+  edge is left under the "no general satisfiability" doctrine.
+- `check_options_value` now attaches a PEP 678 note per candidate to a `matches
+  no option` error, recording why each option rejected the value (`as <id>:
+  <cause>`). The main message, `leaf` and `path` are unchanged; the notes survive
+  pickle.
+- Breaking (messages only): compile-time certification of an invalid default now
+  reports the failure as structured data — `path` carries the field name,
+  `"default"`, and any sub-path as clean coordinates, with the violation as the
+  `leaf`. The rendered line reads `x: default: <leaf>`, **identical** to the
+  runtime serving path (`_resolve_fields`): the same defect now reads the same
+  way whether certification or serving catches it. Previously certification
+  degraded the whole line into the leaf and rendered `Field 'x': default <leaf>`.
+  Only the message and its structure changed; no behaviour did.
+
 ## [0.0.3]
 
 - Unions whose options share one runtime input type now compile. `list[str] |

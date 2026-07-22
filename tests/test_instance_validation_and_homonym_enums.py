@@ -6,7 +6,7 @@ The input-data path never reaches it — an ambiguous shared type is handled by
 the `$type`/`$value` wrapper first — so the message only appears when a *value*
 (a rematerialized default, or an already-constructed instance validated through
 `Struct._check`) is routed. test_discriminated_wrapper.py pins the default case
-("Field 'x': default matches no option"); this file pins the instance case.
+("x: default: matches no option"); this file pins the instance case.
 
 The second half pins homonym enums as union options: two Enum classes that share
 `__name__` route by their exact member type, because `duplicate_options` groups

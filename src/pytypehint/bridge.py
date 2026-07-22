@@ -153,8 +153,8 @@ def _shape_of(opt, cache: dict) -> Shape:
         return shape_cls(**_kwargs_of(meta, base.__name__, table))
 
     if isinstance(base, type) and issubclass(base, Enum):
-        _kwargs_of(meta, "enum", {})
-        return EnumShape(cls=base)
+        kwargs = _kwargs_of(meta, "enum", {Extra: "_extras"})
+        return EnumShape(cls=base, **kwargs)
 
     if isinstance(base, type) and is_dataclass(base):
         _kwargs_of(meta, "dataclass", {})
