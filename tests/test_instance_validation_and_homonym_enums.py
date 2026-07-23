@@ -8,10 +8,15 @@ the `$type`/`$value` wrapper first — so the message only appears when a *value
 `Struct._check`) is routed. test_discriminated_wrapper.py pins the default case
 ("x: default: matches no option"); this file pins the instance case.
 
-The second half pins homonym enums as union options: two Enum classes that share
-`__name__` route by their exact member type, because `duplicate_options` groups
-by runtime type, not by identity. shapes.py: "two enums that share a class name
-still route by their exact member type".
+The second half pins homonym enums as union options. Two Enum classes that share
+`__name__` route by their exact member type — `duplicate_options` groups by
+runtime type, not identity, and never flags them. But the field still rejects the
+pair at compile time: `option_id()` is the public identity every wrapper reads to
+name an option, and two options that collapse to one identity are a defective
+schema, the same defect `_check_discriminators` rejects for homonym dataclasses.
+The rejection lives in `_check_discriminators`, not in `duplicate_options`; the
+two are kept distinct on purpose (a struct and an enum of the same name never
+share a `$type` and stay admissible).
 """
 
 from dataclasses import dataclass, make_dataclass
@@ -111,7 +116,9 @@ def test_matches_no_option_carries_the_list_index_path():
 
 # ------------------------------------------------ homonym enums as union options ---
 # Two Enum classes both named "Color". They share an option_id ("Color") but not
-# a runtime type, so they are routable and compile.
+# a runtime type. duplicate_options (which keys on runtime type) admits them, but
+# the field's discriminator check rejects them: one public identity for two
+# options is a defective schema, symmetric with homonym dataclasses.
 
 
 def _homonym_enums():
@@ -120,27 +127,42 @@ def _homonym_enums():
     return left, right
 
 
-def test_homonym_enums_compile_as_distinct_options_despite_a_shared_identity():
-    """shapes.py: "two enums that share a class name still route by their exact member type".
+def test_homonym_enums_are_rejected_at_compilation():
+    """structure.py, _check_discriminators: two enum options that share a class name collapse to one option_id and are rejected while compiling the field.
 
-    Regression caught: an option_id collision (both "Color") would look like a
-    duplicate to a naive check; the schema must key on runtime type and admit it.
+    Regression caught: dropping enums from the discriminator check would let a
+    schema compile whose two "Color" options are indistinguishable by their public
+    identity — the exact collision a wrapper cannot resolve.
     """
     left, right = _homonym_enums()
-    schema = struct_of(make_dataclass("C", [("x", left | right)]))
 
-    shapes = schema.fields[0].shape
-    assert [s.option_id() for s in shapes] == ["Color", "Color"]
-    assert [s.pytype for s in shapes] == [left, right]
-    assert left is not right
+    with pytest.raises(
+            ValueError,
+            match=r"Field 'x': duplicate discriminator name\(s\): Color"):
+        struct_of(make_dataclass("C", [("x", left | right)]))
 
 
-def test_duplicate_options_groups_by_runtime_type_not_by_identity():
-    """shapes.py, duplicate_options: options collide only when they share both a runtime type *and* an identity.
+def test_homonym_enums_inside_a_list_are_rejected_at_compilation():
+    """structure.py, _check_discriminators: the check recurses into List items, so `list[E1 | E2]` of homonym enums is rejected one level down too.
 
-    Regression caught: if duplicate_options keyed on option_id alone (ignoring
-    pytype), homonym enums would be wrongly rejected as duplicates — and the same
-    enum twice would still (correctly) be caught, so this pins both directions.
+    Regression caught: a check that stopped at the field's own shapes would admit
+    the collision as long as it hid inside a list.
+    """
+    left, right = _homonym_enums()
+
+    with pytest.raises(
+            ValueError,
+            match=r"Field 'x': duplicate discriminator name\(s\): Color"):
+        struct_of(make_dataclass("C", [("x", list[left | right])]))
+
+
+def test_duplicate_options_still_admits_homonym_enums_by_runtime_type():
+    """shapes.py, duplicate_options: options collide there only when they share both a runtime type *and* an identity — the homonym rejection lives elsewhere.
+
+    Regression caught: if the fix had moved the rejection into duplicate_options,
+    it would key on option_id alone and wrongly report homonym enums as a
+    *duplicate option type*; and the same enum twice must still be caught here.
+    This pins that _check_discriminators, not duplicate_options, owns the rule.
     """
     left, right = _homonym_enums()
 
@@ -148,45 +170,35 @@ def test_duplicate_options_groups_by_runtime_type_not_by_identity():
     assert duplicate_options((EnumShape(cls=left), EnumShape(cls=left))) is True
 
 
-def test_homonym_enums_route_each_member_by_its_exact_class():
-    """docs/vocabulary.md: "Enum values must be members of the exact enum class" — even when two enum options share a name.
+def test_non_homonym_enums_still_compile_and_route_by_exact_class():
+    """docs/vocabulary.md: two enums with distinct names route by their exact member type — the fix touches only the name collision, nothing else.
 
-    Regression caught: routing by class *name* instead of exact type would send
-    a member of the right enum to the left option (or vice versa).
+    Regression caught: an over-broad rejection keyed on runtime type or on being
+    an enum at all would break ordinary two-enum unions.
     """
-    left, right = _homonym_enums()
+    left = Enum("Left", {"RED": 1, "GREEN": 2})
+    right = Enum("Right", {"YES": "y", "NO": "n"})
     schema = struct_of(make_dataclass("C", [("x", left | right)]))
 
+    assert [s.option_id() for s in schema.fields[0].shape] == ["Left", "Right"]
     assert schema.resolve({"x": left.RED}) == {"x": left.RED}
     assert schema.resolve({"x": right.YES}) == {"x": right.YES}
+    assert schema.build({"x": left.GREEN}).x is left.GREEN
 
 
-def test_a_foreign_value_names_the_shared_identity_once():
-    """src/pytypehint/validation.py, accepted(): options sharing a runtime type name it once — homonym enums report "Color", not "Color | Color".
+def test_a_homonym_dataclass_and_enum_do_not_collide():
+    """structure.py, _check_discriminators: each kind guards its own identity namespace — a dataclass and an enum of the same name never share a `$type`, so the pair compiles.
 
-    Regression caught: dropping the dict.fromkeys dedup in accepted() would emit
-    the duplicated name for a foreign value.
+    A struct arrives as a dict routed by "$type" = class name; an enum arrives as
+    a member routed by exact type and never carries a "$type". Their identity
+    spaces are disjoint, so a shared name is harmless. This pins the deliberate
+    seam between the two namespaces.
     """
-    left, right = _homonym_enums()
-    schema = struct_of(make_dataclass("C", [("x", left | right)]))
+    dc = make_dataclass("Nom", [("a", int)])
+    en = Enum("Nom", {"K": 1})
+    schema = struct_of(make_dataclass("C", [("x", dc | en)]))
 
-    with pytest.raises(SchemaTypeError) as error:
-        schema.resolve({"x": 5})
-
-    assert error.value.leaf == "expected Color, got int"
-
-
-def test_homonym_enums_inside_a_list_route_each_element():
-    """docs/vocabulary.md: "union-valued items are supported" — a list of two homonym enums routes each element by its exact member type.
-
-    Regression caught: a list item router keyed on the enum name would misroute
-    elements between the two same-named options.
-    """
-    left, right = _homonym_enums()
-    schema = struct_of(make_dataclass("C", [("x", list[left | right])]))
-
-    item_ids = [s.option_id() for s in schema.fields[0].shape[0].item]
-    assert item_ids == ["Color", "Color"]
-
-    built = schema.build({"x": [left.RED, right.YES, left.GREEN]})
-    assert built.x == [left.RED, right.YES, left.GREEN]
+    # The struct is the only dataclass option, so it takes no discriminator.
+    assert schema.resolve({"x": {"a": 3}}) == {"x": {"a": 3}}
+    assert schema.resolve({"x": en.K}) == {"x": en.K}
+    assert schema.build({"x": {"a": 3}}).x == dc(3)

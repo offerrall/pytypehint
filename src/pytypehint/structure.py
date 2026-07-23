@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from pytypehint.atoms import Label, Description, OptionalToggle
 from pytypehint.errors import SchemaTypeError, SchemaValueError, _prefixed
-from pytypehint.shapes import NoneShape, List, Shape, duplicate_options
+from pytypehint.shapes import NoneShape, List, Shape, EnumShape, duplicate_options
 from pytypehint.utils import MISSING, check_opt
 from pytypehint.validation import accepted, check_options_value, value_branch
 
@@ -135,17 +135,34 @@ class Field:
         _data_shape(self.shape, value)
 
 
+# A shape kind whose distinct classes can share one option_id(): the class name.
+# Struct and EnumShape both expose `.cls`, and two of them named alike compile to
+# the same public identity while keeping distinct runtime types. Every other shape
+# either shares its pytype (caught as a duplicate option) or spells its identity
+# from its structure (list[str] vs list[int]).
+_DISCRIMINATED = (Struct, EnumShape)
+
+
 def _check_discriminators(field_name: str, shapes) -> None:
-    structs = [shape for shape in shapes if type(shape) is Struct]
-    by_name: dict[str, set[type]] = {}
-    for shape in structs:
-        by_name.setdefault(shape.cls.__name__, set()).add(shape.cls)
-    duplicates = sorted(name for name, classes in by_name.items()
-                        if len(classes) > 1)
-    if duplicates:
-        raise ValueError(
-            f"Field {field_name!r}: duplicate discriminator name(s): "
-            f"{', '.join(duplicates)}")
+    # Two options indistinguishable by option_id() — their public identity — are a
+    # defective schema, the same defect the core already rejects for dataclasses.
+    # For Structs it is also a routing failure: dict inputs route by "$type" = class
+    # name, so two same-named Structs are unroutable. Enums never arrive as dicts and
+    # route by exact member type, so their names never collide on the wire; the rule
+    # here is about the identity every wrapper reads, not the core's own routing.
+    # Each kind guards its own namespace: a Struct and an Enum of the same name never
+    # compete for one "$type", so the pair stays admissible.
+    for kind in _DISCRIMINATED:
+        by_name: dict[str, set[type]] = {}
+        for shape in shapes:
+            if type(shape) is kind:
+                by_name.setdefault(shape.cls.__name__, set()).add(shape.cls)
+        duplicates = sorted(name for name, classes in by_name.items()
+                            if len(classes) > 1)
+        if duplicates:
+            raise ValueError(
+                f"Field {field_name!r}: duplicate discriminator name(s): "
+                f"{', '.join(duplicates)}")
 
     for shape in shapes:
         if type(shape) is List:

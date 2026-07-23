@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.5]
+
+- Compilation now rejects a union of two enums that share a class name, e.g.
+  two Enum classes both named `Color`, with `Field '<name>': duplicate
+  discriminator name(s): Color` — the same message and recursion (into `list`
+  items) that already guarded homonym dataclasses. Both options collapse to one
+  `option_id()`, the public identity wrappers read to name an option, and one
+  identity for two options is a defective schema. The core still routes each by
+  its exact member type; the rule is about identity, not routing, so an enum and
+  a dataclass of the same name never collide and stay admissible. Previously the
+  core admitted the pair and only a wrapper could catch it.
+
 ## [0.0.4]
 
 - Enum fields now accept `Extra`, the same namespaced wrapper-notation channel

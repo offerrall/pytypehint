@@ -58,9 +58,11 @@ class Shape:
 
 
 # Two options are routable when their runtime types differ; when they coincide,
-# their identities must differ so a discriminator can name one of them. Options
-# with different runtime types never need distinct identities: two enums that
-# share a class name still route by their exact member type.
+# their identities must differ so a discriminator can name one of them. This keys
+# on runtime type alone: two enums that share a class name have different runtime
+# types and route by their exact member type, so they are not duplicates here. A
+# separate rule (structure._check_discriminators) still rejects that name clash as
+# a public-identity collision — that concern is the field's, not this function's.
 def duplicate_options(shapes) -> bool:
     seen: dict[type, set[str]] = {}
     for shape in shapes:
