@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.6]
+
+- Breaking: `datetime.time` values with non-zero microseconds are no longer
+  accepted. Time precision is limited to whole seconds, so the effective range
+  is `00:00:00..23:59:59`. A value previously admissible such as
+  `time(12, 30, 0, 500000)` now fails with `time precision is limited to whole
+  seconds`. The rule is enforced at every entry point of the core: `Min`/`Max`
+  bounds and `Choices` members at compile time, and a value wherever it is
+  validated — direct check, default certification, `resolve`, `build`, and
+  inside nested dataclasses, unions and lists — through the single `Time._check`.
+  The failure carries its coordinate as `path`, like every other constraint.
+- Following from the tighter range, `Time`'s exclusive-edge guard moves in from
+  the sub-second clock edge to the whole-second one: an exclusive `Min` at
+  `23:59:59` (was `time.max`) and an exclusive `Max` at `00:00:00` now report
+  `exclusive bound at ... leaves no valid time`. A bound at `time.max` is instead
+  rejected as sub-second precision.
+
 ## [0.0.5]
 
 - Compilation now rejects a union of two enums that share a class name, e.g.

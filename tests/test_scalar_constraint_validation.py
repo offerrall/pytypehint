@@ -145,6 +145,12 @@ def test_time_exclusive_min_rejects_bound():
         Time(min=Min(time(9, 0), exclusive=True))._check(time(9, 0))
 
 
-@pytest.mark.parametrize("micro", [0, 1, 500000, 999999])
-def test_time_microsecond_precision_within_bounds(micro):
-    Time(min=Min(time(9, 0, 0, 0)), max=Max(time(9, 0, 1, 0)))._check(time(9, 0, 0, micro))
+def test_time_whole_second_accepted_within_bounds():
+    Time(min=Min(time(9, 0, 0, 0)), max=Max(time(9, 0, 1, 0)))._check(time(9, 0, 0, 0))
+
+
+@pytest.mark.parametrize("micro", [1, 500000, 999999])
+def test_time_subsecond_rejected_within_bounds(micro):
+    shape = Time(min=Min(time(9, 0, 0, 0)), max=Max(time(9, 0, 1, 0)))
+    with pytest.raises(ValueError, match="whole seconds"):
+        shape._check(time(9, 0, 0, micro))

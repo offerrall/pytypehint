@@ -514,9 +514,21 @@ class Time(Shape):
         if self.max is not None and self.max.value.tzinfo is not None:
             raise ValueError(f"{name}.max: must be naive (no tzinfo), got {self.max.value}")
 
-        # An exclusive bound at the clock's edge admits no time: there is no naive
-        # time before 00:00:00 or after 23:59:59.999999. Symmetric with Date.
-        if self.min is not None and self.min.exclusive and self.min.value == time.max:
+        # Time precision is limited to whole seconds: a sub-second component has no
+        # meaning in this domain, so a bound that carries one is a defective schema.
+        if self.min is not None and self.min.value.microsecond != 0:
+            raise ValueError(
+                f"{name}.min: time precision is limited to whole seconds, got {self.min.value}")
+
+        if self.max is not None and self.max.value.microsecond != 0:
+            raise ValueError(
+                f"{name}.max: time precision is limited to whole seconds, got {self.max.value}")
+
+        # An exclusive bound at the clock's edge admits no time: with whole-second
+        # precision the valid range is 00:00:00..23:59:59, so nothing lies before
+        # 00:00:00 or after 23:59:59. Symmetric with Date, drawn in from time.max by
+        # the sub-second values this shape no longer accepts.
+        if self.min is not None and self.min.exclusive and self.min.value == time(23, 59, 59):
             raise ValueError(f"{name}: exclusive bound at {self.min.value} leaves no valid time")
         if self.max is not None and self.max.exclusive and self.max.value == time.min:
             raise ValueError(f"{name}: exclusive bound at {self.max.value} leaves no valid time")
@@ -536,6 +548,10 @@ class Time(Shape):
                 if c.tzinfo is not None:
                     raise ValueError(f"{name}.choices: must be naive (no tzinfo), got {c}")
 
+                if c.microsecond != 0:
+                    raise ValueError(
+                        f"{name}.choices: time precision is limited to whole seconds, got {c}")
+
                 if self.min is not None:
                     below = c <= self.min.value if self.min.exclusive else c < self.min.value
                     if below:
@@ -552,6 +568,9 @@ class Time(Shape):
 
         if value.tzinfo is not None:
             raise SchemaValueError(f"must be naive (no tzinfo): {value}")
+
+        if value.microsecond != 0:
+            raise SchemaValueError(f"time precision is limited to whole seconds: {value}")
 
         if self.min is not None:
             minimum = cast(time, self.min.value)

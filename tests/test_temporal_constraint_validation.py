@@ -137,7 +137,7 @@ def test_time_full_day_no_bounds(hour):
     Time()._check(time(hour, 0))
 
 
-@pytest.mark.parametrize("t", [time(0, 0), time(12, 0), time(23, 59, 59, 999999)])
+@pytest.mark.parametrize("t", [time(0, 0), time(12, 0), time(23, 59, 59)])
 def test_time_extremes_accepted(t):
     Time()._check(t)
 

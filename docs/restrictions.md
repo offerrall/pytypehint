@@ -223,20 +223,36 @@ value: must be naive (no tzinfo): 12:00:00+00:00
 Comparing aware times requires date and timezone context. The `Time` shape is
 explicitly naive.
 
+## Sub-second `time`
+
+```text
+value: time precision is limited to whole seconds: 12:30:00.500000
+Time.min: time precision is limited to whole seconds, got 12:30:00.500000
+Time.choices: time precision is limited to whole seconds, got 12:30:00.500000
+```
+
+`Time` admits a value only when its `microsecond` is zero. Sub-second precision
+carries no meaning in this domain, so a bound, a choice or a value that supplies
+one is rejected — a bound or choice at compile time, a value wherever it is
+validated (direct check, default certification, `resolve`, `build`, and inside
+nested dataclasses, unions and lists). The effective range is therefore
+`00:00:00..23:59:59`.
+
 ## Exclusive bound at a temporal edge
 
 ```text
-Time: exclusive bound at 23:59:59.999999 leaves no valid time
+Time: exclusive bound at 23:59:59 leaves no valid time
 Time: exclusive bound at 00:00:00 leaves no valid time
 ```
 
-An exclusive `Min` at `date.max`/`time.max`, or an exclusive `Max` at
-`date.min`/`time.min`, excludes the only value on that side of the bound and
-leaves the field unsatisfiable. `Date` and `Time` reject it at compile time,
-symmetrically. The analogous `Float` edge (`sys.float_info.max`) is deliberately
-left to run: it falls under the "no general satisfiability" doctrine of
-[philosophy.md](philosophy.md), where the core proves only the contradictions it
-can determine exactly.
+An exclusive `Min` at the top of the range, or an exclusive `Max` at the bottom,
+excludes the only value on that side of the bound and leaves the field
+unsatisfiable. For `Date` the edges are `date.max`/`date.min`; for `Time`, with
+its whole-second precision, they are `23:59:59`/`00:00:00`. Both reject the case
+at compile time, symmetrically. The analogous `Float` edge
+(`sys.float_info.max`) is deliberately left to run: it falls under the "no
+general satisfiability" doctrine of [philosophy.md](philosophy.md), where the
+core proves only the contradictions it can determine exactly.
 
 ## Non-finite float
 
