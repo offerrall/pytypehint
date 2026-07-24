@@ -56,6 +56,15 @@ kwargs = signature_of(search).build({"query": "python"})
 search(**kwargs)  # execution belongs to the caller
 ```
 
+## Ecosystem
+
+`pytypehint` is the policy-free schema core. Separate wrappers consume the same compiled structures for specific environments:
+
+* **[`pytypehintweb`](https://github.com/offerrall/pytypehintweb)** compiles schemas into a strict, expanded JSON plan and provides a framework-free browser runtime for rendering forms and transporting their values back to Python.
+* **[`FuncToWeb`](https://github.com/offerrall/FuncToWeb)** exposes typed Python functions through generated web interfaces while leaving invocation, presentation and application policy outside the core.
+
+These packages build on `pytypehint`; they are not required to define, compile, validate or construct models with the core library.
+
 ## Guarantees
 
 - Exact types: `type(value) is T`; the core never coerces.
