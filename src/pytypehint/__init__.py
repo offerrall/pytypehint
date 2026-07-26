@@ -14,7 +14,7 @@ from pytypehint.shapes import (
 )
 from pytypehint.utils import MISSING
 
-__version__ = "0.0.6"
+__version__ = "0.0.7"
 
 __all__ = [
     "struct_of",

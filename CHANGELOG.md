@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.0.7]
+
+- Breaking: `IsPathFile` now guarantees that the string names a real file at the
+  moment of validation, not merely that its text ends in an accepted suffix. A
+  value such as `"missing.png"` previously passed on its extension alone and now
+  fails with `file does not exist: 'missing.png'`. The mark validates, in this
+  order: the value is exactly `str`, the ordinary `Str` limits on the text, the
+  extension, `stat`, that the target is a regular file and not a directory, the
+  size, and finally `Choices`. The extension is checked before the filesystem
+  because it costs nothing and names the defect precisely.
+- `IsPathFile` gains `min_size` and `max_size`, byte counts that are `int` or
+  `None`, never negative, with `min_size` not exceeding `max_size`; `bool` is not
+  accepted as an `int`. Violations report
+  `IsPathFile.min_size must be int or None, got bool`,
+  `IsPathFile.max_size must be >= 0, got -1` and
+  `IsPathFile: min_size 100 exceeds max_size 50`. A file whose size falls outside
+  the bounds fails with `file too small: 120 bytes, minimum 1024` or
+  `file too large: 7000000 bytes, maximum 5242880`; an empty file is valid unless
+  `min_size` is greater than zero.
+- The public value remains exactly `str`. `pathlib.Path` is used only inside the
+  validation, to inspect the file: nothing is coerced to `Path`, normalized,
+  resolved, expanded or made absolute, so a relative path keeps its meaning
+  relative to the working directory and the value stays as written.
+- New failures: `file does not exist: <path>`, `not a file: <path>` for a
+  directory or any non-regular target, the two size messages above, and
+  `cannot inspect file <path>: <error type>: <error>` when the OS refuses the
+  inspection. `FileNotFoundError` is distinguished from every other `OSError`, and
+  each failure keeps its cause through `raise ... from` and its coordinate in
+  `path`/`leaf` — `document: file does not exist: 'missing.pdf'`,
+  `files: [1]: file too large: 7000000 bytes, maximum 5242880`.
+- `Path.stat()` follows symlinks: a live link to a regular file is accepted and a
+  broken one fails as non-existent. The guarantee is bounded in time — the file
+  existed and met the contract when it was validated, and nothing promises it
+  still does afterwards.
+- Breaking: `Choices` combined with `IsPathFile` are certified against the whole
+  file contract when the schema compiles, where before only their extension was
+  checked. `Str.choices: file does not exist: 'default.png'` now fails
+  compilation. Defaults are certified the same way, so a `signature_of` over
+  `image: Annotated[str, IsPathFile()] = "default.png"` fails unless that file
+  exists, is a regular file and meets the extension and size bounds.
+- One internal function validates the whole contract, so `_check`, `Choices` and
+  default certification cannot drift apart. `IsPathFile` remains metadata
+  exclusive to `Str`: no new shape, no `PathFile` type, and no compatibility
+  switch (`exists=False`, `strict=False`) — the semantics are single and explicit.
+
 ## [0.0.6]
 
 - Breaking: `datetime.time` values with non-zero microseconds are no longer

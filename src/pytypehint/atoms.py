@@ -202,6 +202,8 @@ class Rows:
 @dataclass(frozen=True, kw_only=True)
 class IsPathFile:
     extensions: tuple[str, ...] = ()
+    min_size: int | None = None
+    max_size: int | None = None
 
     def __post_init__(self):
         name = type_name(self)
@@ -220,6 +222,21 @@ class IsPathFile:
 
         if len(self.extensions) != len(set(self.extensions)):
             raise ValueError(f"{name}.extensions must not repeat")
+
+
+        for attribute, size in (("min_size", self.min_size), ("max_size", self.max_size)):
+            if size is None:
+                continue
+
+            if type(size) is not int:
+                raise TypeError(f"{name}.{attribute} must be int or None, got {type(size).__name__}")
+
+            if size < 0:
+                raise ValueError(f"{name}.{attribute} must be >= 0, got {size}")
+
+        if (self.min_size is not None and self.max_size is not None
+                and self.min_size > self.max_size):
+            raise ValueError(f"{name}: min_size {self.min_size} exceeds max_size {self.max_size}")
 
 
 @dataclass(frozen=True)

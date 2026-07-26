@@ -76,15 +76,25 @@ def test_str_pattern_rejects_non_matches(s):
 PATH = Str(is_path_file=IsPathFile(extensions=(".png", ".jpg")))
 
 
-@pytest.mark.parametrize("s", ["a.png", "a.jpg", "A.PNG", "photo.JPG", "x.y.png"])
-def test_path_accepts_valid_extensions_case_insensitive(s):
-    PATH._check(s)
+@pytest.mark.parametrize("name", ["a.png", "a.jpg", "A.PNG", "photo.JPG", "x.y.png"])
+def test_path_accepts_valid_extensions_case_insensitive(tmp_path, name):
+    target = tmp_path / name
+    target.write_bytes(b"x")
+    PATH._check(str(target))
 
 
 @pytest.mark.parametrize("s", ["a.gif", "a.txt", "a", "png", "a.png.txt", ""])
 def test_path_rejects_wrong_extensions(s):
+    # The suffix is checked before the filesystem, so these report the extension
+    # rather than the absence of the file.
     with pytest.raises(ValueError, match="not an accepted file type"):
         PATH._check(s)
+
+
+@pytest.mark.parametrize("name", ["a.png", "photo.JPG"])
+def test_path_rejects_accepted_extension_that_does_not_exist(name):
+    with pytest.raises(ValueError, match="file does not exist"):
+        PATH._check(name)
 
 
 CUSTOM = Str(pattern=Pattern(r"[a-z]+", message="lowercase letters only"))
@@ -202,9 +212,11 @@ def test_hex_color_rejects(s):
 MULTI_EXT = Str(is_path_file=IsPathFile(extensions=(".png", ".jpg", ".jpeg", ".webp", ".gif")))
 
 
-@pytest.mark.parametrize("s", ["a.png", "b.JPG", "c.jpeg", "d.WEBP", "e.gif", "photo.final.png"])
-def test_multi_extension_accepts(s):
-    MULTI_EXT._check(s)
+@pytest.mark.parametrize("name", ["a.png", "b.JPG", "c.jpeg", "d.WEBP", "e.gif", "photo.final.png"])
+def test_multi_extension_accepts(tmp_path, name):
+    target = tmp_path / name
+    target.write_bytes(b"x")
+    MULTI_EXT._check(str(target))
 
 
 @pytest.mark.parametrize("s", ["a.bmp", "a.tiff", "a.svg", "a", "a.png.zip"])

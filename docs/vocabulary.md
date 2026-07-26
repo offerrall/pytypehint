@@ -23,6 +23,12 @@ coercion, subclass acceptance or `int`/`bool` leakage.
 naive `time`. Enum values must be members of the exact enum class. `None` alone
 is rejected because it describes no useful field; use `X | None`.
 
+There is no path type. A file input is a `str` marked with `IsPathFile`, which
+validates the file that string names — extension, existence, regular file and
+size — while the value stays exactly `str`. `pathlib.Path` appears only inside the
+validation, as the instrument that inspects the file, never as the result. See
+[atoms.md](atoms.md).
+
 Lists validate their length and every indexed item. Nesting and union-valued
 items are supported:
 

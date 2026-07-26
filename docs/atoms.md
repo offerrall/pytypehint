@@ -48,8 +48,36 @@ the order the atoms were written in, and exposes them as a read-only `extras`
 dict built on access. Filtering by namespace is the wrapper's job:
 `{k: v for k, v in shape.extras.items() if k.startswith("ledform.")}`.
 
-`IsPathFile(extensions=(...))` marks a string as a path input. Extensions are
-lowercase dotted suffixes; validation checks the suffix, never file existence.
+`IsPathFile(extensions=(), min_size=None, max_size=None)` marks a `str` as a path
+to an existing file. Extensions are lowercase dotted suffixes; sizes are byte
+counts, each `int` or `None`, never negative, and `min_size` may not exceed
+`max_size` (`bool` is not an `int` here). Validation checks the extension, that
+the path exists, that it is a regular file and not a directory, and the size.
+
+The value is and remains exactly `str`: `pathlib.Path` is used only inside the
+validation, to inspect the file. Nothing is coerced, normalized, resolved or made
+absolute.
+
+```python
+from typing import Annotated
+from pytypehint import IsPathFile
+
+FilePath = Annotated[
+    str,
+    IsPathFile(
+        extensions=(".pdf",),
+        max_size=10 * 1024 * 1024,
+    ),
+]
+```
+
+The guarantee is about the moment of validation: the file existed and met the
+contract when it was validated. Nothing promises it still does afterwards.
+Relative paths are accepted and interpreted against the current working
+directory, exactly as Python does; the value stays as written. A symlink is
+followed: a live link to a regular file is accepted, and a broken one fails as
+non-existent. Defaults and `Choices` are certified with these same guarantees
+when the schema compiles.
 
 `Label(text)` and `Description(text)` are non-empty field-level notation.
 
@@ -60,9 +88,11 @@ wrapper. It never changes resolution or defaults.
 ## Compile-time cross-checks
 
 The schema rejects empty ranges; choices outside bounds or failing pattern,
-multiple or extension rules; ranges containing no valid multiple; sliders
+multiple or file rules; ranges containing no valid multiple; sliders
 without both bounds; wrong bound types; and `OptionalToggle` on a non-optional
-field. These contradictions fail during schema compilation because a compiled
+field. A choice under `IsPathFile` must satisfy the whole file contract, not only
+its suffix, and so must a certified default. These contradictions fail during
+schema compilation because a compiled
 schema must be structurally valid. Compilation rejects contradictions it can
 determine exactly; it does not attempt a general satisfiability proof across
 constraints such as a regular expression combined with length bounds.

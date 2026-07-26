@@ -150,21 +150,32 @@ def test_pattern_custom_message():
     assert str(exc.value) == "digits only"
 
 
-def test_is_path_file_empty_extensions_no_limit():
-    Str(is_path_file=IsPathFile())._check("anything")
+def test_is_path_file_empty_extensions_accepts_any_existing_file(tmp_path):
+    target = tmp_path / "anything"
+    target.write_bytes(b"x")
+    Str(is_path_file=IsPathFile())._check(str(target))
 
 
-def test_is_path_file_matching_extension():
-    Str(is_path_file=IsPathFile(extensions=(".csv",)))._check("data.csv")
+def test_is_path_file_matching_extension(tmp_path):
+    target = tmp_path / "data.csv"
+    target.write_bytes(b"x")
+    Str(is_path_file=IsPathFile(extensions=(".csv",)))._check(str(target))
 
 
-def test_is_path_file_case_insensitive():
-    Str(is_path_file=IsPathFile(extensions=(".csv",)))._check("data.CSV")
+def test_is_path_file_case_insensitive(tmp_path):
+    target = tmp_path / "data.CSV"
+    target.write_bytes(b"x")
+    Str(is_path_file=IsPathFile(extensions=(".csv",)))._check(str(target))
 
 
 def test_is_path_file_wrong_extension():
     with pytest.raises(ValueError, match="not an accepted file type"):
         Str(is_path_file=IsPathFile(extensions=(".csv",)))._check("data.json")
+
+
+def test_is_path_file_missing_file():
+    with pytest.raises(ValueError, match="file does not exist"):
+        Str(is_path_file=IsPathFile(extensions=(".csv",)))._check("data.csv")
 
 
 def test_choices_membership():
@@ -224,7 +235,13 @@ def test_bridge_email_alias_custom_message_chains_field():
         schema.resolve({"email": "nope"})
 
 
-def test_bridge_image_file_alias():
+def test_bridge_image_file_alias(tmp_path, monkeypatch):
+    # Relative paths resolve against the working directory, so the default and
+    # the supplied values are read from the temporary one.
+    monkeypatch.chdir(tmp_path)
+    for name in ("a.png", "photo.JPG", "doc.pdf"):
+        (tmp_path / name).write_bytes(b"x")
+
     ImageFile = Annotated[str, IsPathFile(extensions=(".png", ".jpg"))]
 
     @dataclass
@@ -235,6 +252,8 @@ def test_bridge_image_file_alias():
     assert schema.resolve({"pic": "photo.JPG"}) == {"pic": "photo.JPG"}
     with pytest.raises(ValueError, match="not an accepted file type"):
         schema.resolve({"pic": "doc.pdf"})
+    with pytest.raises(ValueError, match="file does not exist"):
+        schema.resolve({"pic": "absent.png"})
 
 
 def test_bridge_optional_str():

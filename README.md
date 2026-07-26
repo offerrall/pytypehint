@@ -79,6 +79,11 @@ These packages build on `pytypehint`; they are not required to define, compile, 
 - Invalid atom combinations and contradictions the core can determine exactly
   fail while compiling the schema. The core does not attempt a general
   satisfiability proof across unrelated constraints.
+- `IsPathFile` marks a `str` that names an existing file, and validates its
+  extension, existence, regular-file status and size. The value stays exactly
+  `str`; `pathlib.Path` is used only inside the validation, to inspect the file.
+  The guarantee refers to the moment of validation. Defaults and `Choices` are
+  certified under the same contract when the schema compiles.
 - Errors retain the complete field and list-index path, as the message text and
   as data: `SchemaTypeError` and `SchemaValueError` carry `path` and `leaf`, and
   subclass `TypeError` and `ValueError`.
@@ -134,9 +139,22 @@ Everything public is exported from `pytypehint`:
 - `Shape`, `Int`, `Float`, `Str`, `Bool`, `Date`, `Time`, `List`,
   `NoneShape`, `EnumShape`;
 - limits: `Min`, `Max`, `Choices`, `MultipleOf`, `Pattern`, `IsPathFile`;
+  `IsPathFile(extensions=(), min_size=None, max_size=None)` — sizes in bytes;
 - notation: `Label`, `Description`, `Placeholder`, `Step`, `Slider`,
   `IsPassword`, `Rows`, `Extra`, `OptionalToggle`;
 - `MISSING`.
+
+A file input is a `str`, not a new type:
+
+```python
+FilePath = Annotated[
+    str,
+    IsPathFile(
+        extensions=(".pdf",),
+        max_size=10 * 1024 * 1024,
+    ),
+]
+```
 
 `Extra(key, value)` takes a key containing a namespace separator
 (`"package.name"`; a dot is required) and any string value, including an empty

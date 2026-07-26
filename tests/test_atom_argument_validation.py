@@ -178,6 +178,29 @@ def test_is_path_file_valid_extensions(exts):
     IsPathFile(extensions=exts)
 
 
+@pytest.mark.parametrize("kwargs,msg", [
+    ({"min_size": True}, "min_size must be int or None, got bool"),
+    ({"max_size": False}, "max_size must be int or None, got bool"),
+    ({"min_size": 1.5}, "min_size must be int or None, got float"),
+    ({"max_size": 1.5}, "max_size must be int or None, got float"),
+    ({"min_size": "10"}, "min_size must be int or None, got str"),
+    ({"max_size": "10"}, "max_size must be int or None, got str"),
+    ({"min_size": -1}, r"min_size must be >= 0, got -1"),
+    ({"max_size": -1}, r"max_size must be >= 0, got -1"),
+    ({"min_size": 100, "max_size": 50}, "min_size 100 exceeds max_size 50"),
+])
+def test_is_path_file_invalid_sizes(kwargs, msg):
+    with pytest.raises((TypeError, ValueError), match=msg):
+        IsPathFile(**kwargs)
+
+
+@pytest.mark.parametrize("size", [None, 0, 1, 1024, 5 * 1024 * 1024])
+def test_is_path_file_valid_sizes(size):
+    IsPathFile(min_size=size)
+    IsPathFile(max_size=size)
+    IsPathFile(min_size=size, max_size=size)
+
+
 @pytest.mark.parametrize("bad", [1, "yes", None, 0])
 def test_slider_show_value_must_be_bool(bad):
     with pytest.raises(TypeError, match="show_value must be bool"):

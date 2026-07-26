@@ -3,6 +3,8 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, time, timedelta
 from enum import Enum, Flag
+from pathlib import Path
+from stat import S_ISREG
 from typing import ClassVar, cast
 
 from pytypehint.atoms import (
@@ -269,6 +271,34 @@ class Float(Shape):
             raise SchemaValueError(f"not a choice: {value}, expected one of {self.choices.values}")
 
 
+def _check_path_file(value: str, mark: IsPathFile) -> None:
+    if mark.extensions and not any(value.lower().endswith(e) for e in mark.extensions):
+        raise SchemaValueError(
+            f"not an accepted file type: {value!r}, "
+            f"expected one of {mark.extensions}")
+
+    try:
+        info = Path(value).stat()
+    except FileNotFoundError as error:
+        raise SchemaValueError(f"file does not exist: {value!r}") from error
+
+    except (OSError, ValueError) as error:
+        raise SchemaValueError(
+            f"cannot inspect file {value!r}: "
+            f"{type(error).__name__}: {error}") from error
+
+    if not S_ISREG(info.st_mode):
+        raise SchemaValueError(f"not a file: {value!r}")
+
+    if mark.min_size is not None and info.st_size < mark.min_size:
+        raise SchemaValueError(
+            f"file too small: {info.st_size} bytes, minimum {mark.min_size}")
+
+    if mark.max_size is not None and info.st_size > mark.max_size:
+        raise SchemaValueError(
+            f"file too large: {info.st_size} bytes, maximum {mark.max_size}")
+
+
 @dataclass(frozen=True, kw_only=True)
 class Str(Shape):
     pytype: ClassVar[type] = str
@@ -342,9 +372,11 @@ class Str(Shape):
                 if self._compiled is not None and self._compiled.fullmatch(c) is None:
                     raise ValueError(f"{name}.choices: {c!r} does not match pattern")
 
-                if self.is_path_file is not None and self.is_path_file.extensions:
-                    if not any(c.lower().endswith(e) for e in self.is_path_file.extensions):
-                        raise ValueError(f"{name}.choices: {c!r} is not an accepted file type")
+                if self.is_path_file is not None:
+                    try:
+                        _check_path_file(c, self.is_path_file)
+                    except SchemaValueError as e:
+                        raise ValueError(f"{name}.choices: {e.leaf}") from e
 
     def _check(self, value) -> None:
         if type(value) is not str:
@@ -362,11 +394,8 @@ class Str(Shape):
                 raise SchemaValueError(pattern.message)
             raise SchemaValueError(f"does not match pattern {pattern.value!r}")
 
-        if self.is_path_file is not None and self.is_path_file.extensions:
-            if not any(value.lower().endswith(e) for e in self.is_path_file.extensions):
-                raise SchemaValueError(
-                    f"not an accepted file type: {value!r}, "
-                    f"expected one of {self.is_path_file.extensions}")
+        if self.is_path_file is not None:
+            _check_path_file(value, self.is_path_file)
 
         if self.choices is not None and value not in self.choices.values:
             raise SchemaValueError(f"not a choice: {value!r}, expected one of {self.choices.values}")

@@ -14,9 +14,9 @@ import pytest
 
 import pytypehint
 from pytypehint import (
-    Choices, Description, Extra, Field, Int, Label, Max, Min, MultipleOf,
-    OptionalToggle, Pattern, SchemaTypeError, SchemaValueError, Signature,
-    Slider, Struct, signature_of, struct_of,
+    Choices, Description, Extra, Field, Int, IsPathFile, Label, Max, Min,
+    MultipleOf, OptionalToggle, Pattern, SchemaTypeError, SchemaValueError,
+    Signature, Slider, Struct, signature_of, struct_of,
 )
 from pytypehint.shapes import (
     Bool, Date, EnumShape, Float, List, NoneShape, Str, Time,
@@ -150,6 +150,50 @@ def test_documented_atom_contradictions_fail_at_compilation(hint, message):
     model = make_dataclass("DocumentedContradiction", [("value", hint)])
     with pytest.raises((TypeError, ValueError), match=message):
         struct_of(model)
+
+
+# docs/atoms.md, docs/restrictions.md and README "Guarantees" on IsPathFile.
+def test_is_path_file_validates_the_file_and_keeps_the_value_a_str(tmp_path):
+    FilePath = Annotated[str, IsPathFile(extensions=(".pdf",), max_size=10 * 1024 * 1024)]
+    model = make_dataclass("Upload", [("document", FilePath)])
+    schema = struct_of(model)
+
+    target = tmp_path / "report.pdf"
+    target.write_bytes(b"x")
+    built = schema.build({"document": str(target)})
+    assert built.document == str(target)
+    assert type(built.document) is str
+
+    folder = tmp_path / "folder.pdf"
+    folder.mkdir()
+    documented = [
+        ("missing.pdf", "document: file does not exist: 'missing.pdf'"),
+        (str(folder), f"document: not a file: {str(folder)!r}"),
+    ]
+    for value, message in documented:
+        with pytest.raises(SchemaValueError) as error:
+            schema.resolve({"document": value})
+        assert str(error.value) == message
+
+
+def test_is_path_file_certifies_defaults_and_choices_at_compilation(tmp_path, monkeypatch):
+    """docs/defaults.md and docs/atoms.md: both are certified under the file contract."""
+    monkeypatch.chdir(tmp_path)
+
+    def process(image: Annotated[str, IsPathFile()] = "default.png"):
+        return image
+
+    with pytest.raises(SchemaValueError) as error:
+        signature_of(process)
+    assert str(error.value) == "image: default: file does not exist: 'default.png'"
+
+    with pytest.raises(ValueError, match=r"Str\.choices: file does not exist"):
+        struct_of(make_dataclass("Offered", [(
+            "image",
+            Annotated[str, Choices(values=("default.png",)), IsPathFile(extensions=(".png",))])]))
+
+    (tmp_path / "default.png").write_bytes(b"x")
+    assert signature_of(process).build({}) == {"image": "default.png"}
 
 
 def test_pattern_uses_fullmatch_and_custom_message():

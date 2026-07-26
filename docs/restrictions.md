@@ -262,6 +262,41 @@ value: not finite: nan
 
 NaN and infinity do not obey ordinary finite range semantics.
 
+## File that does not meet an `IsPathFile` contract
+
+```text
+not an accepted file type: 'image.gif', expected one of ('.png', '.jpg')
+file does not exist: 'missing.png'
+not a file: 'folder'
+file too small: 120 bytes, minimum 1024
+file too large: 7000000 bytes, maximum 5242880
+cannot inspect file 'locked.png': PermissionError: [Errno 13] Permission denied
+```
+
+`IsPathFile` marks a `str` whose text names an existing file, so the string alone
+is not the constraint. Validation runs in one order: the value is exactly `str`,
+the ordinary `Str` limits apply to the text, then the extension, then `stat`, the
+regular-file test, the size, and finally `Choices`. The extension comes before the
+filesystem because it costs nothing and names the defect precisely.
+
+`pathlib.Path` is the inspection instrument and never the result: the validated
+value is the same `str` that arrived. Nothing is coerced to `Path`, normalized,
+resolved, expanded or made absolute, so a relative path keeps its meaning
+relative to the working directory. `Path.stat()` follows symlinks — a live link to
+a regular file is accepted, a broken one reports as non-existent — and an
+inspection the OS refuses keeps its cause through `raise ... from`.
+
+The guarantee is bounded in time: the file existed and met the contract at the
+moment of validation. A file can be moved or truncated immediately afterwards,
+and no check taken in advance could say otherwise. Defaults and `Choices` are
+certified under the same contract when the schema compiles.
+
+```text
+document: file does not exist: 'missing.pdf'
+files: [1]: file too large: 7000000 bytes, maximum 5242880
+Str.choices: file does not exist: 'default.png'
+```
+
 ## Invalid default
 
 ```text
