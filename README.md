@@ -62,6 +62,7 @@ search(**kwargs)  # execution belongs to the caller
 
 * **[`pytypehintweb`](https://github.com/offerrall/pytypehintweb)** compiles schemas into a strict, expanded JSON plan and provides a framework-free browser runtime for rendering forms and transporting their values back to Python.
 * **[`FuncToWeb`](https://github.com/offerrall/FuncToWeb)** exposes typed Python functions through generated web interfaces while leaving invocation, presentation and application policy outside the core.
+* **[`pytypehintstore`](https://github.com/offerrall/pytypehintstore)** keeps rows of one validated dataclass in memory and mirrors them to a JSON file named after the class and the fingerprint of its compiled schema, so a changed contract is a separate database instead of a migration.
 
 These packages build on `pytypehint`; they are not required to define, compile, validate or construct models with the core library.
 
