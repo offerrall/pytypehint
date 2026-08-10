@@ -38,6 +38,25 @@ opens a path, never asks whether it exists, and never turns it into a
 `pathlib.Path`: a `str` marked this way is a `str` that says what it names, not a
 file the core has been to see. See [atoms.md](atoms.md).
 
+There is no `datetime` type either, and for a different reason: a combined
+timestamp cannot be read one way. Whether it is aware or naive, what precision it
+keeps and how it is written down are policy, and a field typed `datetime` would
+leave the answers unstated. Written as a dataclass the answers are the author's,
+and the schema says which ones they chose:
+
+```python
+@dataclass
+class Timestamp:
+    day: date
+    at: time
+    utc_offset_minutes: int | None = None
+```
+
+`build(decode(...))` returns it from `{"day": "2026-08-10", "at": "14:30",
+"utc_offset_minutes": 120}`, and the offset field is where the timezone policy
+lives — visible to every reader of the document instead of assumed from a type
+name. See [philosophy.md](philosophy.md).
+
 Lists validate their length and every indexed item. Nesting and union-valued
 items are supported:
 

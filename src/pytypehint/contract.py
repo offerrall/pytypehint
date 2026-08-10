@@ -210,10 +210,15 @@ def _struct_ref(struct, doc: _Document) -> str:
     # its own id here and writes a reference instead of recurring forever. It
     # also fixes the table's key order as the order definitions were reached.
     doc.structs[ident] = {}
-    doc.structs[ident] = {
-        "name": struct.cls.__name__,
-        "fields": [_field_node(f, doc) for f in struct.fields],
-    }
+    # Written as a loop rather than a comprehension because this is on the path
+    # that recurses: before 3.12 a comprehension has a frame of its own, and a
+    # frame per level of nesting is the difference between writing a schema the
+    # core accepted and failing on it. See `_slot`, which is the other half of
+    # the same cycle.
+    fields = []
+    for f in struct.fields:
+        fields.append(_field_node(f, doc))
+    doc.structs[ident] = {"name": struct.cls.__name__, "fields": fields}
     return ident
 
 
@@ -324,7 +329,13 @@ def _shape_node(shape, doc: _Document, *, labelled: bool) -> dict:
 
 def _slot(shapes, doc: _Document) -> list:
     labelled = len(shapes) > 1
-    return [_shape_node(shape, doc, labelled=labelled) for shape in shapes]
+    # A loop, for the reason given in `_struct_ref`: this is the second half of
+    # the cycle a nested dataclass recurses through, and a comprehension here
+    # costs a stack frame per level on interpreters before 3.12.
+    nodes = []
+    for shape in shapes:
+        nodes.append(_shape_node(shape, doc, labelled=labelled))
+    return nodes
 
 
 def _field_node(f, doc: _Document) -> dict:

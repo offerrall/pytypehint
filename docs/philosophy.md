@@ -188,6 +188,33 @@ interpret a value. It works on trees, never on bytes — `json.loads` and
 every consumer an opinion about encodings, precision and dialects that has
 nothing to do with types.
 
+## A type has one reading, or it is a struct
+
+The type vocabulary is an algebra rather than a list. Its primitives are `int`,
+`float`, `str`, `bool`, `date`, `time`, `None` and the members of an enum, and
+they compose through the dataclass, the list and the union. A type is admitted as
+a primitive only when it has exactly one reading and no policy attached; a type
+that needs a policy in order to exist is not a primitive but a struct whose author
+fixes the policy. A calendar day is a calendar day, so `date` is admitted.
+
+`datetime` is where the rule is easiest to see. Taking it would mean answering, on
+behalf of everyone, whether it is aware or naive, what precision it keeps, and how
+it is written down — ISO 8601 with an offset, seconds since the epoch, the fields
+kept apart. Each answer is right somewhere and wrong somewhere else, and a core
+that picked one would be shipping a policy under the name of a type. So it does
+not pick. An author who needs a timestamp writes the dataclass that states which
+policy is theirs, and the policy is then legible in the schema instead of being
+assumed from a type name. [restrictions.md](restrictions.md) records the refusal;
+this is the reason under it.
+
+The vocabulary is closed and complete at the same time — complete with respect to
+that criterion, which is the only completeness a vocabulary can claim. The room to
+grow is in the composition, and there it is unbounded: structs nest and recur,
+lists nest, unions hold any of it, so the set of expressible schemas is infinite
+while the list of names stays the length it is. A request for a new type is
+answered with the criterion rather than case by case, and the answer is usually
+that the type can be written today, as a struct, by whoever needs it.
+
 ## Expanding the vocabulary
 
 The atom vocabulary is closed and curated. An atom describes one field: its

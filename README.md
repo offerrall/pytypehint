@@ -221,6 +221,13 @@ in [comparison.md](docs/comparison.md).
 | `list[str] \| list[int]` | tuple of shapes | `{"$type": "list[str]", "$value": [...]}` |
 | `Literal[...]` | `Int` or `Str` with `Choices` | homogeneous `int` or `str` literals |
 
+That list is closed by design and complete by a criterion: a type is a primitive
+only when it has one reading and no policy attached, and one that needs a policy
+to exist — `datetime`, which would force a choice of timezone, precision and
+serialization — is written as a dataclass whose author fixes it. Composition is
+where the room is, and it is unbounded, so the names stay this few while the
+schemas they express do not. See [philosophy.md](docs/philosophy.md).
+
 Python allows `list[str | int]` and `list[str] | list[int]`, and they mean
 different things. The core keeps both, and asks for a discriminator only where
 the value cannot supply one:
