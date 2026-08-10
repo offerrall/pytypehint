@@ -10,7 +10,6 @@ one `Time._check`. The structured error carries the offending coordinate as
 
 from dataclasses import dataclass, field
 from datetime import time
-from typing import Annotated
 
 import pytest
 

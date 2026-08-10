@@ -4,6 +4,13 @@
 `Signature.build(data)` returns validated, constructed keyword arguments. It
 never calls the function; use `fn(**kwargs)` or `await fn(**kwargs)` yourself.
 
+`build` takes exact Python. A tree that arrived in a portable form — where a
+`date` is text and an enum member is a name — passes through
+[`decode`](decode.md) first, as a separate call: `schema.build(schema.decode(data))`.
+Nothing on this page changes because of it. `build` validates what it is given
+and nothing else, so `"2026-08-08"` in a `date` field fails here whether or not
+anything decoded it earlier.
+
 ```python
 from dataclasses import dataclass
 from pytypehint import signature_of, struct_of

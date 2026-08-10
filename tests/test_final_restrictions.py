@@ -29,6 +29,8 @@ DOCUMENTED_MESSAGES = (
     "leaf: n: default: too large: 2, maximum 1",
     "self: looks like an unbound method — pytypehint takes plain functions; wrap the call (def run(q: str): return service.search(q))",
     "RecursionError: maximum recursion depth exceeded",
+    "Field 'x': duplicate discriminator name(s): Same",
+    "Field 'x': duplicate discriminator name(s): str",
     'value: ambiguous dict: field accepts File | Url — add "$type" naming the variant',
     "value: $type: not a choice: 'Other', expected one of ('File', 'Url')",
     "value: $type: expected str, got int",

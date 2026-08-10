@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pytypehint"
 dynamic = ["version"]
-description = "Compiles Python type hints into strict, inspectable schemas"
+description = "Compiles Python type hints into strict, inspectable, portable contracts"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -21,6 +21,9 @@ path = "src/pytypehint/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pytypehint"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/.hypothesis", "/.ruff_cache", "/.pytest_cache", "/.mypy_cache"]
 
 [tool.mypy]
 python_version = "3.11"

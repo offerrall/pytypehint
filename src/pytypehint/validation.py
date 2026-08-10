@@ -17,9 +17,17 @@ def _accepts(shape, value) -> bool:
 
 # A Python value is a real object, not input data: it carries no discriminator,
 # and none can be attached to it. Options sharing its runtime type are therefore
-# separated by what they accept. This is not a guess between them — a value that
-# satisfies several rematerializes identically through any of them, because
-# rematerialization routes each element by its own exact type.
+# separated by what they accept. For rematerialization this is not a guess between
+# them — a value that satisfies several rematerializes identically through any of
+# them, because rematerialization routes each element by its own exact type.
+#
+# One caller does observe the choice: `contract._portable` writes it as the
+# `$type` of a default, where "either will do" becomes a byte in a document
+# compared for equality. It asks this exactly as everyone else does, and the
+# answer holds still under it because every check the core performs is answered
+# by the schema and the value alone — nothing consults the filesystem, the
+# environment, the working directory or the clock. There is no atom whose answer
+# can differ between two processes, or between two moments of one.
 def value_branch(shapes, value):
     candidates = [shape for shape in shapes if type(value) is shape.pytype]
     if len(candidates) < 2:

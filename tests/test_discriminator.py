@@ -99,7 +99,9 @@ def test_duplicate_discriminator_names_in_list_are_rejected_at_compilation():
     second = make_dataclass("Same", [("y", str)])
     root = make_dataclass("Root", [("values", list[first | second])])
 
+    # The list refuses its own items, so compilation stops at the shape that
+    # holds the collision rather than at the field that happens to carry it.
     with pytest.raises(
             ValueError,
-            match=r"Field 'values': duplicate discriminator name\(s\): Same"):
+            match=r"List\.item: duplicate discriminator name\(s\): Same"):
         struct_of(root)

@@ -3,11 +3,10 @@ from typing import Annotated, ClassVar
 
 import pytest
 
-from pytypehint.atoms import Label, Max, Min
+from pytypehint.atoms import Max, Min
 from pytypehint.bridge import struct_of
 from pytypehint.shapes import Bool, Int, List, NoneShape
 from pytypehint.structure import Field, Struct
-from pytypehint.utils import MISSING
 
 
 @dataclass

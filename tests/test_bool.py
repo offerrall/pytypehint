@@ -7,7 +7,6 @@ from pytypehint.atoms import Description, Label, Min
 from pytypehint.bridge import struct_of
 from pytypehint.shapes import Bool, List, NoneShape
 from pytypehint.structure import Field, Struct
-from pytypehint.utils import MISSING
 
 
 def case_bare_bool():

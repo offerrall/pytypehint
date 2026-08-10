@@ -1,7 +1,7 @@
 from pytypehint.bridge import struct_of, signature_of
 from pytypehint.atoms import (
     # limit atoms
-    Min, Max, Choices, MultipleOf, Pattern, IsPathFile,
+    Min, Max, Choices, MultipleOf, Pattern, FileHint,
     # notation atoms
     Label, Description, Placeholder, Step, Slider, IsPassword, Rows, Extra,
     OptionalToggle,
@@ -14,7 +14,7 @@ from pytypehint.shapes import (
 )
 from pytypehint.utils import MISSING
 
-__version__ = "0.0.7"
+__version__ = "1.0.0"
 
 __all__ = [
     "struct_of",
@@ -25,7 +25,7 @@ __all__ = [
     "Choices",
     "MultipleOf",
     "Pattern",
-    "IsPathFile",
+    "FileHint",
     # notation atoms
     "Label",
     "Description",

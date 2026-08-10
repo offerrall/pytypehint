@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 import pytest
 
-from pytypehint import Choices, IsPathFile, Max, Min, Pattern, struct_of
+from pytypehint import Choices, FileHint, Max, Min, Pattern, struct_of
 from pytypehint.shapes import Str
 
 
@@ -73,28 +73,19 @@ def test_str_pattern_rejects_non_matches(s):
         DIGITS._check(s)
 
 
-PATH = Str(is_path_file=IsPathFile(extensions=(".png", ".jpg")))
+FILE = Str(file_hint=FileHint(extensions=(".png", ".jpg")))
 
 
 @pytest.mark.parametrize("name", ["a.png", "a.jpg", "A.PNG", "photo.JPG", "x.y.png"])
-def test_path_accepts_valid_extensions_case_insensitive(tmp_path, name):
-    target = tmp_path / name
-    target.write_bytes(b"x")
-    PATH._check(str(target))
+def test_file_hint_accepts_valid_extensions_case_insensitive(name):
+    # The extension lives in the text, so no file has to exist for these to pass.
+    FILE._check(name)
 
 
 @pytest.mark.parametrize("s", ["a.gif", "a.txt", "a", "png", "a.png.txt", ""])
-def test_path_rejects_wrong_extensions(s):
-    # The suffix is checked before the filesystem, so these report the extension
-    # rather than the absence of the file.
+def test_file_hint_rejects_wrong_extensions(s):
     with pytest.raises(ValueError, match="not an accepted file type"):
-        PATH._check(s)
-
-
-@pytest.mark.parametrize("name", ["a.png", "photo.JPG"])
-def test_path_rejects_accepted_extension_that_does_not_exist(name):
-    with pytest.raises(ValueError, match="file does not exist"):
-        PATH._check(name)
+        FILE._check(s)
 
 
 CUSTOM = Str(pattern=Pattern(r"[a-z]+", message="lowercase letters only"))
@@ -209,14 +200,12 @@ def test_hex_color_rejects(s):
         HEX._check(s)
 
 
-MULTI_EXT = Str(is_path_file=IsPathFile(extensions=(".png", ".jpg", ".jpeg", ".webp", ".gif")))
+MULTI_EXT = Str(file_hint=FileHint(extensions=(".png", ".jpg", ".jpeg", ".webp", ".gif")))
 
 
 @pytest.mark.parametrize("name", ["a.png", "b.JPG", "c.jpeg", "d.WEBP", "e.gif", "photo.final.png"])
-def test_multi_extension_accepts(tmp_path, name):
-    target = tmp_path / name
-    target.write_bytes(b"x")
-    MULTI_EXT._check(str(target))
+def test_multi_extension_accepts(name):
+    MULTI_EXT._check(name)
 
 
 @pytest.mark.parametrize("s", ["a.bmp", "a.tiff", "a.svg", "a", "a.png.zip"])

@@ -14,7 +14,10 @@ def test_non_frozen_dataclass_instance_default_is_rejected_by_python():
         class Container:
             value: Mutable = Mutable()
 
-from pytypehint import Min, signature_of, struct_of
+# Imported here rather than at the top of the file: the test above is about what
+# *Python* refuses before pytypehint is involved at all, and reading it first is
+# the point of the order.
+from pytypehint import Min, signature_of, struct_of  # noqa: E402
 
 
 def test_tuple_default_on_function_list_param_rejected():

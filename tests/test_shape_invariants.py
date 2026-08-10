@@ -8,7 +8,7 @@ from pytypehint.atoms import (
 )
 from pytypehint.bridge import struct_of
 from pytypehint.shapes import Bool, Int, List, NoneShape, Shape
-from pytypehint.structure import Field, Struct
+from pytypehint.structure import Field
 from pytypehint.utils import MISSING
 
 

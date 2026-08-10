@@ -3,6 +3,11 @@
 Validation is exact: a hint `T` accepts only `type(value) is T`. There is no
 coercion, subclass acceptance or `int`/`bool` leakage.
 
+Values that arrive in a portable tree — where a `date`, a `time` and an enum
+member have no carrier of their own — pass through [`decode`](decode.md) first,
+which restores those spellings and nothing else. Everything below describes what
+`resolve` and `build` accept, after that step or without it.
+
 | Hint | Shape | Example |
 |---|---|---|
 | `int` | `Int` | `n: int` |
@@ -23,11 +28,15 @@ coercion, subclass acceptance or `int`/`bool` leakage.
 naive `time`. Enum values must be members of the exact enum class. `None` alone
 is rejected because it describes no useful field; use `X | None`.
 
-There is no path type. A file input is a `str` marked with `IsPathFile`, which
-validates the file that string names — extension, existence, regular file and
-size — while the value stays exactly `str`. `pathlib.Path` appears only inside the
-validation, as the instrument that inspects the file, never as the result. See
-[atoms.md](atoms.md).
+There is no path type. A file input is a `str` marked with `FileHint`, which
+carries the contract of the file that string names — the extensions it may take,
+and the sizes it must fall between — while the value stays exactly `str`. Of
+that contract the core validates only the extension, which the text of the value
+settles by itself; the sizes are declared, written into the portable document and
+checked where the file actually is, at the wrapper's boundary. The core never
+opens a path, never asks whether it exists, and never turns it into a
+`pathlib.Path`: a `str` marked this way is a `str` that says what it names, not a
+file the core has been to see. See [atoms.md](atoms.md).
 
 Lists validate their length and every indexed item. Nesting and union-valued
 items are supported:

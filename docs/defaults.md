@@ -16,18 +16,14 @@ missing-key serving. A provided key never runs its recipe. The served value is
 validated each time, so an impure recipe that drifts outside its schema
 fails with a `default` path segment.
 
-Certification uses the field's full contract, and some contracts reach outside the
-value. A default under `IsPathFile` is validated like any other input: the schema
-does not compile unless that file exists, is a regular file, carries an accepted
-extension and meets the size bounds. This is deliberate — an offered default that
-cannot be served is a defective schema, and it is better reported at compile time
-than on the first missing key. A rematerialized path default is still exactly
-`str`; see [atoms.md](atoms.md).
-
-```python
-def process(image: Annotated[str, IsPathFile()] = "default.png"): ...
-# signature_of(process) -> image: default: file does not exist: 'default.png'
-```
+Certification uses the field's full contract, and no part of that contract reaches
+outside the schema and the value. A default under `FileHint` is validated like any
+other input, which here means its extension: the schema does not compile unless the
+default names an accepted kind of file. Whether that file exists and how large it
+is are not settled here and cannot be — they are facts about the world, true only
+in the process and instant that asks, so they travel in the document and are
+applied by the wrapper where the value is actually used. A rematerialized path
+default is still exactly `str`; see [atoms.md](atoms.md).
 
 Defaults must be pure and deterministic: same recipe, equal result, no shared
 mutable state or observable side effects. The core cannot prove that promise.

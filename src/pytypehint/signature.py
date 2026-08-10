@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 
-from pytypehint.structure import Field, _build_kwargs, _resolve_fields
+from pytypehint.contract import _signature_document
+from pytypehint.structure import (
+    Field, _build_kwargs, _decode_fields, _resolve_fields,
+)
 
 
 @dataclass(frozen=True, kw_only=True, eq=False)
@@ -22,8 +25,14 @@ class Signature:
         if len(names) != len(set(names)):
             raise ValueError(f"duplicate parameter names in {self.name}")
 
+    def decode(self, kwargs) -> dict:
+        return _decode_fields(self.params, kwargs)
+
     def resolve(self, kwargs) -> dict:
         return _resolve_fields(self.params, kwargs, kind="argument")
 
     def build(self, kwargs) -> dict:
         return _build_kwargs(self.params, self.resolve(kwargs))
+
+    def to_dict(self) -> dict:
+        return _signature_document(self)

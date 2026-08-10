@@ -1,4 +1,4 @@
-from dataclasses import FrozenInstanceError, dataclass, field
+from dataclasses import FrozenInstanceError, dataclass
 from typing import Annotated
 
 import pytest

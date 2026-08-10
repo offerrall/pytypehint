@@ -8,7 +8,7 @@ from pytypehint.atoms import Label, Max, Min
 from pytypehint.bridge import signature_of, struct_of
 from pytypehint.shapes import Bool, Int, List, NoneShape, Shape
 from pytypehint.signature import Signature
-from pytypehint.structure import Field, Struct
+from pytypehint.structure import Field
 from pytypehint.utils import MISSING
 
 

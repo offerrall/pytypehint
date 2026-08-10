@@ -46,11 +46,20 @@ class SchemaValueError(ValueError):
         return _reduce(self)
 
 
+# Notes are part of the diagnosis, not decoration: `matches no option` adds one
+# per candidate saying why that option rejected the value, and rebuilding the
+# error one level out would drop exactly the detail it was raised to carry.
+def _renote(rebuilt: Exception, original: Exception) -> Exception:
+    for note in getattr(original, "__notes__", ()):
+        rebuilt.add_note(note)
+    return rebuilt
+
+
 def _prefixed(error: Exception, path: tuple) -> Exception:
     """Re-raise `error` one level out, with `path` prepended and its leaf intact."""
     if isinstance(error, (SchemaTypeError, SchemaValueError)):
-        return type(error)(error.leaf, (*path, *error.path))
+        return _renote(type(error)(error.leaf, (*path, *error.path)), error)
     # A foreign TypeError/ValueError — a user factory or __post_init__ — has no
     # structure to preserve, so its whole message becomes the leaf.
     cls = SchemaTypeError if isinstance(error, TypeError) else SchemaValueError
-    return cls(str(error), path)
+    return _renote(cls(str(error), path), error)

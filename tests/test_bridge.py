@@ -57,7 +57,9 @@ def test_explicit_string_annotations():
 def test_unresolvable_forward_reference():
     @dataclass
     class C:
-        x: "NoSuchType" = 0
+        # The name is meant not to exist: that is what makes `get_type_hints`
+        # raise, which is the behaviour under test.
+        x: "NoSuchType" = 0  # noqa: F821
 
     with pytest.raises(NameError):
         struct_of(C)

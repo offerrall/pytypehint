@@ -7,5 +7,7 @@ dist/
 venv/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.hypothesis/
 .vscode/
 .idea/

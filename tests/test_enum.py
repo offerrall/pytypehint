@@ -6,7 +6,7 @@ import pytest
 
 from pytypehint.atoms import Description, Label, Min, Placeholder
 from pytypehint.bridge import signature_of, struct_of
-from pytypehint.shapes import EnumShape, Int, NoneShape
+from pytypehint.shapes import EnumShape, NoneShape
 from pytypehint.structure import Struct
 
 

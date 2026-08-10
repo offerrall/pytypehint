@@ -8,7 +8,7 @@ from typing import Annotated, get_type_hints
 import pytest
 
 from pytypehint import (
-    Choices, Extra, IsPassword, IsPathFile, Max, Min, MultipleOf, Pattern,
+    Choices, Extra, FileHint, IsPassword, Max, Min, MultipleOf, Pattern,
     Placeholder, Rows, Slider, Step, struct_of,
 )
 from pytypehint import bridge
@@ -115,7 +115,7 @@ _TYPE_ATOMS = {
     Placeholder: Placeholder("p"),
     Rows: Rows(2),
     IsPassword: IsPassword(),
-    IsPathFile: IsPathFile(extensions=(".txt",)),
+    FileHint: FileHint(extensions=(".txt",)),
     Extra: Extra("pkg.k", "e"),
 }
 
@@ -148,7 +148,7 @@ _MATRIX = [
         Max: (Max(10),),
         Choices: (Choices(values=("a", "b")),),
         Pattern: (Pattern("[a-z]+"),),
-        IsPathFile: (IsPathFile(extensions=(".txt",)),),
+        FileHint: (FileHint(extensions=(".txt",)),),
         IsPassword: (IsPassword(),),
         Rows: (Rows(2),),
         Placeholder: (Placeholder("p"),),

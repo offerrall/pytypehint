@@ -5,7 +5,7 @@ from typing import Annotated
 import pytest
 
 from pytypehint.atoms import (
-    Choices, IsPassword, IsPathFile, Max, Min, MultipleOf, Pattern,
+    Choices, FileHint, IsPassword, Max, Min, MultipleOf, Pattern,
     Placeholder, Rows, Slider, Step,
 )
 from pytypehint.bridge import struct_of
@@ -47,24 +47,24 @@ def test_rows_rejects_float():
         Rows(2.5)
 
 
-def test_is_path_file_extension_must_start_with_dot():
+def test_file_hint_extension_must_start_with_dot():
     with pytest.raises(ValueError, match="must start with"):
-        IsPathFile(extensions=("png",))
+        FileHint(extensions=("png",))
 
 
-def test_is_path_file_extension_must_be_lowercase():
+def test_file_hint_extension_must_be_lowercase():
     with pytest.raises(ValueError, match="must be lowercase"):
-        IsPathFile(extensions=(".PNG",))
+        FileHint(extensions=(".PNG",))
 
 
-def test_is_path_file_extension_must_not_repeat():
+def test_file_hint_extension_must_not_repeat():
     with pytest.raises(ValueError, match="must not repeat"):
-        IsPathFile(extensions=(".png", ".png"))
+        FileHint(extensions=(".png", ".png"))
 
 
-def test_is_path_file_extension_must_be_str():
+def test_file_hint_extension_must_be_str():
     with pytest.raises(TypeError, match="expected str"):
-        IsPathFile(extensions=(1,))
+        FileHint(extensions=(1,))
 
 
 def test_check_empty_string_valid():
@@ -150,32 +150,41 @@ def test_pattern_custom_message():
     assert str(exc.value) == "digits only"
 
 
-def test_is_path_file_empty_extensions_accepts_any_existing_file(tmp_path):
-    target = tmp_path / "anything"
-    target.write_bytes(b"x")
-    Str(is_path_file=IsPathFile())._check(str(target))
+def test_file_hint_empty_extensions_accepts_any_name():
+    Str(file_hint=FileHint())._check("anything")
 
 
-def test_is_path_file_matching_extension(tmp_path):
-    target = tmp_path / "data.csv"
-    target.write_bytes(b"x")
-    Str(is_path_file=IsPathFile(extensions=(".csv",)))._check(str(target))
+def test_file_hint_matching_extension():
+    Str(file_hint=FileHint(extensions=(".csv",)))._check("data.csv")
 
 
-def test_is_path_file_case_insensitive(tmp_path):
-    target = tmp_path / "data.CSV"
-    target.write_bytes(b"x")
-    Str(is_path_file=IsPathFile(extensions=(".csv",)))._check(str(target))
+def test_file_hint_case_insensitive():
+    Str(file_hint=FileHint(extensions=(".csv",)))._check("data.CSV")
 
 
-def test_is_path_file_wrong_extension():
+def test_file_hint_wrong_extension():
     with pytest.raises(ValueError, match="not an accepted file type"):
-        Str(is_path_file=IsPathFile(extensions=(".csv",)))._check("data.json")
+        Str(file_hint=FileHint(extensions=(".csv",)))._check("data.json")
 
 
-def test_is_path_file_missing_file():
-    with pytest.raises(ValueError, match="file does not exist"):
-        Str(is_path_file=IsPathFile(extensions=(".csv",)))._check("data.csv")
+def test_file_hint_accepts_a_name_no_file_answers_to():
+    """The atom describes the file's contract; only the extension is a fact about the value.
+
+    Existence and size are facts about the world, true or false at the moment
+    the wrapper opens the file — so the core reads the text and nothing else, and
+    a name with an accepted extension passes with no file behind it. The value
+    that comes out is the same plain `str` that went in, never a path object.
+    """
+    absent = "no/such/directory/report.csv"
+    Str(file_hint=FileHint(extensions=(".csv",), min_size=1, max_size=1024))._check(absent)
+
+    @dataclass
+    class C:
+        report: Annotated[str, FileHint(extensions=(".csv",))] = "default.csv"
+
+    resolved = struct_of(C).resolve({"report": absent})
+    assert resolved == {"report": absent}
+    assert type(resolved["report"]) is str
 
 
 def test_choices_membership():
@@ -199,9 +208,9 @@ def test_choices_respect_pattern():
         Str(choices=Choices(values=("x1",)), pattern=Pattern(r"[a-z]+"))
 
 
-def test_choices_respect_path_file():
+def test_choices_respect_file_hint():
     with pytest.raises(ValueError, match="not an accepted file type"):
-        Str(choices=Choices(values=("a.txt",)), is_path_file=IsPathFile(extensions=(".csv",)))
+        Str(choices=Choices(values=("a.txt",)), file_hint=FileHint(extensions=(".csv",)))
 
 
 def test_notation_is_inert():
@@ -235,14 +244,8 @@ def test_bridge_email_alias_custom_message_chains_field():
         schema.resolve({"email": "nope"})
 
 
-def test_bridge_image_file_alias(tmp_path, monkeypatch):
-    # Relative paths resolve against the working directory, so the default and
-    # the supplied values are read from the temporary one.
-    monkeypatch.chdir(tmp_path)
-    for name in ("a.png", "photo.JPG", "doc.pdf"):
-        (tmp_path / name).write_bytes(b"x")
-
-    ImageFile = Annotated[str, IsPathFile(extensions=(".png", ".jpg"))]
+def test_bridge_image_file_alias():
+    ImageFile = Annotated[str, FileHint(extensions=(".png", ".jpg"))]
 
     @dataclass
     class C:
@@ -252,8 +255,6 @@ def test_bridge_image_file_alias(tmp_path, monkeypatch):
     assert schema.resolve({"pic": "photo.JPG"}) == {"pic": "photo.JPG"}
     with pytest.raises(ValueError, match="not an accepted file type"):
         schema.resolve({"pic": "doc.pdf"})
-    with pytest.raises(ValueError, match="file does not exist"):
-        schema.resolve({"pic": "absent.png"})
 
 
 def test_bridge_optional_str():

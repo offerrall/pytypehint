@@ -4,7 +4,7 @@ from typing import Annotated, Optional, TypeAlias, Union, get_args, get_origin
 import pytest
 
 from pytypehint.atoms import (
-    Choices, Description, Label, Max, Min, Placeholder, Slider, Step,
+    Description, Label, Max, Min, Slider, Step,
 )
 from pytypehint.bridge import struct_of
 from pytypehint.shapes import Bool, Int, List, NoneShape

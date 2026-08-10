@@ -3,7 +3,7 @@ from datetime import date, time
 import pytest
 
 from pytypehint import (
-    Choices, Description, IsPassword, IsPathFile, Label, Max, Min, MultipleOf,
+    Choices, Description, FileHint, IsPassword, Label, Max, Min, MultipleOf,
     Pattern, Placeholder, Rows, Slider, Step,
 )
 
@@ -58,9 +58,9 @@ def test_pattern_message_must_not_be_empty():
         Pattern("x", message="")
 
 
-def test_is_path_file_extensions_must_be_tuple():
-    with pytest.raises(TypeError, match="IsPathFile.extensions must be tuple"):
-        IsPathFile(extensions=[".png"])
+def test_file_hint_extensions_must_be_tuple():
+    with pytest.raises(TypeError, match="FileHint.extensions must be tuple"):
+        FileHint(extensions=[".png"])
 
 
 def test_rows_value_must_be_int():
@@ -168,14 +168,14 @@ def test_pattern_valid_regex(good):
     ((5,), "expected str"),
     ((".png", 3), "expected str"),
 ])
-def test_is_path_file_invalid_extensions(exts, msg):
+def test_file_hint_invalid_extensions(exts, msg):
     with pytest.raises((TypeError, ValueError), match=msg):
-        IsPathFile(extensions=exts)
+        FileHint(extensions=exts)
 
 
 @pytest.mark.parametrize("exts", [(), (".png",), (".png", ".jpg", ".webp"), (".tar.gz",)])
-def test_is_path_file_valid_extensions(exts):
-    IsPathFile(extensions=exts)
+def test_file_hint_valid_extensions(exts):
+    FileHint(extensions=exts)
 
 
 @pytest.mark.parametrize("kwargs,msg", [
@@ -189,16 +189,16 @@ def test_is_path_file_valid_extensions(exts):
     ({"max_size": -1}, r"max_size must be >= 0, got -1"),
     ({"min_size": 100, "max_size": 50}, "min_size 100 exceeds max_size 50"),
 ])
-def test_is_path_file_invalid_sizes(kwargs, msg):
+def test_file_hint_invalid_sizes(kwargs, msg):
     with pytest.raises((TypeError, ValueError), match=msg):
-        IsPathFile(**kwargs)
+        FileHint(**kwargs)
 
 
 @pytest.mark.parametrize("size", [None, 0, 1, 1024, 5 * 1024 * 1024])
-def test_is_path_file_valid_sizes(size):
-    IsPathFile(min_size=size)
-    IsPathFile(max_size=size)
-    IsPathFile(min_size=size, max_size=size)
+def test_file_hint_valid_sizes(size):
+    FileHint(min_size=size)
+    FileHint(max_size=size)
+    FileHint(min_size=size, max_size=size)
 
 
 @pytest.mark.parametrize("bad", [1, "yes", None, 0])

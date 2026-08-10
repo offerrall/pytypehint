@@ -143,16 +143,18 @@ def test_homonym_enums_are_rejected_at_compilation():
 
 
 def test_homonym_enums_inside_a_list_are_rejected_at_compilation():
-    """structure.py, _check_discriminators: the check recurses into List items, so `list[E1 | E2]` of homonym enums is rejected one level down too.
+    """shapes.py, `duplicate_discriminators`: the rule reaches inside a list, so `list[E1 | E2]` of homonym enums is rejected one level down too.
 
     Regression caught: a check that stopped at the field's own shapes would admit
-    the collision as long as it hid inside a list.
+    the collision as long as it hid inside a list. The list applies the rule to
+    its own items, so the refusal names the list rather than the field: it is the
+    shape that holds the two identities, and it is refused wherever it is built.
     """
     left, right = _homonym_enums()
 
     with pytest.raises(
             ValueError,
-            match=r"Field 'x': duplicate discriminator name\(s\): Color"):
+            match=r"List\.item: duplicate discriminator name\(s\): Color"):
         struct_of(make_dataclass("C", [("x", list[left | right])]))
 
 

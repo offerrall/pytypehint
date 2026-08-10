@@ -52,6 +52,57 @@ compiled shape, never from `repr()`.
 `Shape.option_id()` returns it. Dataclass options use it as `$type` inline;
 everything else uses it inside the wrapper of [build.md](build.md).
 
+## Duplicate discriminator name
+
+```text
+Field 'x': duplicate discriminator name(s): Same
+Field 'x': duplicate discriminator name(s): str
+List.item: duplicate discriminator name(s): Same
+```
+
+There are two discriminators and therefore two namespaces. A dataclass names
+itself with an inline `$type` among the other dataclasses; everything else names
+itself inside the wrapper. Within one namespace an identity must belong to one
+option.
+
+Where a discriminator is in play, the reason is immediate: it would have nothing
+left to name, and one of the two options would be unreachable. Where none is —
+`int` beside an enum class named `int` routes perfectly well by exact Python
+type — the identity is still the option's public name, the one that appears in
+`Shape.option_id()`, in the document `to_dict` writes, and in the report that
+lists what a field accepts. Two options answering to one name make all three
+ambiguous for every reader, so the rule holds either way and is checked once.
+
+The first message is the familiar case: two different classes called `Same` as
+options of one field. The second is the same defect reached from further away —
+an identity is spelled from the compiled shape, so options of unrelated kinds can
+arrive at one. An enum class named `str` beside a `str`, one named `date` beside
+a `date`, one named `list[str]` beside a `list[str]`: each pair leaves two options
+answering to a single `$type`, and one of them would be unreachable.
+
+The rule is about a namespace, not about a kind of option. A dataclass names
+itself among the dataclasses and everything else names itself in the wrapper, so a
+dataclass never competes for an identity with an option of another kind: an enum
+and a dataclass of one class name are admissible together, and so is a dataclass
+whose `__name__` is `"str"` beside a `str` — both options publish `"id": "str"`,
+and both branches route and build, because routing is by exact runtime type. A
+reader is expected to index the options of a slot by position and read an `id`
+only to fill a discriminator, which is what [contract.md](contract.md) asks of it.
+Within one namespace nothing is relaxed: two options may not share an identity,
+and compilation rejects the pair.
+
+The third message is the rule applied where the collision actually sits. A list's
+items are what its elements name themselves by, and `List` is public API that can
+be built directly, so a list refuses two items of one identity on its own rather
+than waiting for a field to be built around it. That is why `list[Same | Same]`
+is reported against `List.item` and not against the field carrying it: the shape
+holding the two identities is refused wherever it is built, and a field is only
+one of the places it can be built. Errors raised while a shape is being
+constructed name the shape, as they do everywhere else.
+
+Options that share a runtime type *and* an identity are reported as duplicate
+option types instead, below — the same defect, named on its own terms.
+
 ## Duplicate option types in a union
 
 ```text
@@ -262,39 +313,61 @@ value: not finite: nan
 
 NaN and infinity do not obey ordinary finite range semantics.
 
-## File that does not meet an `IsPathFile` contract
+## A numeric atom that names no float
+
+```text
+Step.value must be finite, got inf
+Float.step: expected int or float, got str
+Float.min: must be finite, got inf
+Float.choices: must be finite, got inf
+```
+
+The same rule, one step earlier: a bound, a choice and a step are all written into
+the document as numbers a float reader will use, so none of them has a reading
+outside the finite floats. `nan` slips past a `> 0` test by being neither positive
+nor negative, `inf` passes it while naming no step at all, and both would reach
+the portable tree as `NaN`/`Infinity`, which no JSON reader accepts — a `nan` also
+makes a shape compare unequal to an identically written one. `Float` therefore
+asks of its step exactly what `Int` asks of its own: a number, and a finite one.
+
+An integer too large to convert (`10**400`) fails the same finiteness check, and
+for the same reason: it names no float, so it is not a float bound. The integers
+that *do* name a float, including the ones above `2**53` that name a neighbour
+rather than themselves, are accepted and written as they stand — see
+[contract.md](contract.md).
+
+## File name that does not meet a `FileHint` contract
 
 ```text
 not an accepted file type: 'image.gif', expected one of ('.png', '.jpg')
-file does not exist: 'missing.png'
-not a file: 'folder'
-file too small: 120 bytes, minimum 1024
-file too large: 7000000 bytes, maximum 5242880
-cannot inspect file 'locked.png': PermissionError: [Errno 13] Permission denied
 ```
 
-`IsPathFile` marks a `str` whose text names an existing file, so the string alone
-is not the constraint. Validation runs in one order: the value is exactly `str`,
-the ordinary `Str` limits apply to the text, then the extension, then `stat`, the
-regular-file test, the size, and finally `Choices`. The extension comes before the
-filesystem because it costs nothing and names the defect precisely.
+That is the whole list, and the reason it is one line long is the reason the atom
+exists. `FileHint` states a file's contract — its accepted suffixes and its size
+bounds — and the core checks the part of that contract the value can answer by
+itself. The extension is spelled in the string, so the core settles it; existence
+and size need a filesystem, a working directory and a moment in time, so the core
+states them in the document and the wrapper applies them where it holds the file.
+An answer obtained here would only have been true in this process at this instant,
+and would have made a compiled schema depend on what happened to be on disk; see
+[atoms.md](atoms.md).
 
-`pathlib.Path` is the inspection instrument and never the result: the validated
-value is the same `str` that arrived. Nothing is coerced to `Path`, normalized,
-resolved, expanded or made absolute, so a relative path keeps its meaning
-relative to the working directory. `Path.stat()` follows symlinks — a live link to
-a regular file is accepted, a broken one reports as non-existent — and an
-inspection the OS refuses keeps its cause through `raise ... from`.
+Validation runs in one order: the value is exactly `str`, the ordinary `Str`
+limits apply to the text, then the pattern, then the extension, and finally
+`Choices`. The extension comes after the cheaper text rules and before `Choices`
+because a value that is not even the right kind of file name should be named as
+that, not as a missing choice.
 
-The guarantee is bounded in time: the file existed and met the contract at the
-moment of validation. A file can be moved or truncated immediately afterwards,
-and no check taken in advance could say otherwise. Defaults and `Choices` are
-certified under the same contract when the schema compiles.
+The validated value is the same `str` that arrived. Nothing is coerced to
+`pathlib.Path`, normalized, resolved, expanded or made absolute — the core never
+constructs a path from it at all — so a relative name keeps its meaning for
+whoever eventually opens it. Defaults and `Choices` are certified against the
+extension when the schema compiles, with the field's coordinates in front:
 
 ```text
-document: file does not exist: 'missing.pdf'
-files: [1]: file too large: 7000000 bytes, maximum 5242880
-Str.choices: file does not exist: 'default.png'
+document: not an accepted file type: 'notes.txt', expected one of ('.pdf',)
+files: [1]: not an accepted file type: 'image.gif', expected one of ('.png',)
+Str.choices: not an accepted file type: 'default.txt', expected one of ('.png',)
 ```
 
 ## Invalid default
@@ -327,5 +400,28 @@ parameter. Wrap the bound operation in a plain function.
 RecursionError: maximum recursion depth exceeded
 ```
 
-The error propagates raw. Tracking visited containers on every call would charge
-all real inputs for a cycle that ordinary serialized data cannot contain.
+The error propagates raw, from `decode` as from `resolve` and `build`. Tracking
+visited containers on every call would charge all real inputs for a cycle that
+ordinary serialized data cannot contain — a portable tree parsed from a document
+never holds one, and a hand-built dictionary that does is a program error rather
+than an input error. Very deeply nested data reaches the interpreter's recursion
+limit the same way, and the core does not impose a shallower limit of its own.
+
+## A union option unreachable from a portable tree
+
+Not an error, and worth knowing. `resolve` and `build` route by exact Python
+type, so `str | date` is unambiguous to them. A portable tree spells both as
+text, so a bare string can only be read as the `str`, and the `date` needs the
+wrapper of [decode.md](decode.md) to be named:
+
+```python
+{"when": {"$type": "date", "$value": "2026-08-08"}}
+```
+
+The same holds for `int | float` on a whole number, and for any union mixing
+`str`, `date`, `time` and enums. Where no option can take the bare spelling —
+`date | time`, two enums — the bare value fails loudly instead, and the wrapper
+is the only form that works.
+
+If the alternatives are genuinely exclusive, the standard way out applies here
+too: give each one a dataclass and route with `$type`.

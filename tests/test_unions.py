@@ -5,7 +5,6 @@ from typing import Annotated
 import pytest
 
 from pytypehint import Max, Min, struct_of
-from pytypehint.shapes import Int, Str
 
 
 # --------------------------------------------------------------------------

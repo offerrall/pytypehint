@@ -7,7 +7,6 @@ from pytypehint.atoms import Choices, Description, Label, Max, Min, Slider, Step
 from pytypehint.bridge import struct_of
 from pytypehint.shapes import Bool, Int, List, NoneShape
 from pytypehint.structure import Field, Struct
-from pytypehint.utils import MISSING
 
 
 def case_optional_int():

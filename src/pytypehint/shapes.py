@@ -3,17 +3,28 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, time, timedelta
 from enum import Enum, Flag
-from pathlib import Path
-from stat import S_ISREG
 from typing import ClassVar, cast
 
 from pytypehint.atoms import (
-    Choices, Min, Max, MultipleOf, Pattern, IsPassword, IsPathFile, Rows,
+    Choices, Min, Max, MultipleOf, Pattern, FileHint, IsPassword, Rows,
     Step, Slider, Placeholder,
 )
 from pytypehint.errors import SchemaTypeError, SchemaValueError, _prefixed
-from pytypehint.utils import check_opt, type_name
+from pytypehint.utils import check_opt, render_number, type_name
 from pytypehint.validation import check_options_value
+
+
+# A bound on a `Float` may be written as an int, so that `Min(0)` and `Min(0.0)`
+# are one atom. An int can sit outside the float range entirely, and there
+# `math.isfinite` raises OverflowError converting it rather than answering — an
+# exception outside the TypeError/ValueError vocabulary every other rejection on
+# these shapes uses. Such a bound names no float, so for a float shape it is not
+# a finite one, and the question is asked in one place.
+def _finite(value) -> bool:
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 # Extras are stored as a sorted tuple of pairs, never as a dict: the shapes are
@@ -42,6 +53,15 @@ def _normalize_extras(owner: str, value) -> tuple[tuple[str, str], ...]:
 class Shape:
     pytype: ClassVar[type]
 
+    # Which discriminator names this option, and therefore which namespace its
+    # identity has to be unique within. A dataclass names itself with an inline
+    # "$type" among the other dataclasses; everything else names itself inside the
+    # "$type"/"$value" wrapper. The two never compete for one name, which is why a
+    # `Struct` and an `EnumShape` of the same class name stay admissible together.
+    # Declared here rather than tested for, so the rule can be applied by code
+    # that has no reason to know `Struct` exists.
+    discriminator: ClassVar[str] = "wrapper"
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         if not hasattr(cls, "pytype"):
@@ -59,12 +79,35 @@ class Shape:
         return self.pytype.__name__
 
 
+# Two options indistinguishable by `option_id()` — their public identity — are a
+# defective schema: the discriminator that would tell them apart has nothing left
+# to name. Options that share a pytype as well are a duplicate option, which is
+# reported on its own terms and with its own message, so what is caught here is
+# the pair of unrelated kinds that arrive at one name: an enum class named `str`
+# beside a `str`, or one named `list[str]` beside a `list[str]`.
+#
+# The two namespaces are counted apart, and the names are returned rather than
+# raised so that each caller can name the slot it is talking about.
+def duplicate_discriminators(shapes) -> list[str]:
+    tables: dict[str, dict[str, set[type]]] = {}
+    for shape in shapes:
+        table = tables.setdefault(shape.discriminator, {})
+        table.setdefault(shape.option_id(), set()).add(shape.pytype)
+
+    duplicates = []
+    for namespace in ("struct", "wrapper"):
+        duplicates += sorted(option_id
+                             for option_id, pytypes in tables.get(namespace, {}).items()
+                             if len(pytypes) > 1)
+    return duplicates
+
+
 # Two options are routable when their runtime types differ; when they coincide,
 # their identities must differ so a discriminator can name one of them. This keys
 # on runtime type alone: two enums that share a class name have different runtime
-# types and route by their exact member type, so they are not duplicates here. A
-# separate rule (structure._check_discriminators) still rejects that name clash as
-# a public-identity collision — that concern is the field's, not this function's.
+# types and route by their exact member type, so they are not duplicates here.
+# `duplicate_discriminators` above still rejects that name clash as a
+# public-identity collision — a separate concern, with a separate message.
 def duplicate_options(shapes) -> bool:
     seen: dict[type, set[str]] = {}
     for shape in shapes:
@@ -121,7 +164,7 @@ class Int(Shape):
             hi = self.max.value - 1 if self.max.exclusive else self.max.value
 
         if lo is not None and hi is not None and lo > hi:
-            raise ValueError(f"{name}: empty range ({self.min.value}..{self.max.value})")
+            raise ValueError(f"{name}: empty range ({render_number(self.min.value)}..{render_number(self.max.value)})")
 
         if self.choices is not None:
             for c in self.choices.values:
@@ -129,10 +172,10 @@ class Int(Shape):
                     raise TypeError(f"{name}.choices: expected int, got {type(c).__name__}")
 
                 if lo is not None and c < lo:
-                    raise ValueError(f"{name}.choices: {c} below minimum {self.min.value}")
+                    raise ValueError(f"{name}.choices: {render_number(c)} below minimum {render_number(self.min.value)}")
 
                 if hi is not None and c > hi:
-                    raise ValueError(f"{name}.choices: {c} above maximum {self.max.value}")
+                    raise ValueError(f"{name}.choices: {render_number(c)} above maximum {render_number(self.max.value)}")
 
         if self.multiple_of is not None:
             m = self.multiple_of.value
@@ -140,13 +183,13 @@ class Int(Shape):
             if self.choices is not None:
                 for c in self.choices.values:
                     if c % m != 0:
-                        raise ValueError(f"{name}.choices: {c} is not a multiple of {m}")
+                        raise ValueError(f"{name}.choices: {render_number(c)} is not a multiple of {render_number(m)}")
 
             if lo is not None and hi is not None:
                 smallest = -(-lo // m) * m
                 if smallest > hi:
                     raise ValueError(
-                        f"{name}: no multiple of {m} in range ({self.min.value}..{self.max.value})")
+                        f"{name}: no multiple of {render_number(m)} in range ({render_number(self.min.value)}..{render_number(self.max.value)})")
 
         if self.slider is not None and (self.min is None or self.max is None):
             raise ValueError(f"{name}: slider requires min and max")
@@ -159,23 +202,23 @@ class Int(Shape):
             minimum = cast(int, self.min.value)
             if self.min.exclusive:
                 if value <= minimum:
-                    raise SchemaValueError(f"too small: {value}, minimum {self.min.value} (exclusive)")
+                    raise SchemaValueError(f"too small: {render_number(value)}, minimum {render_number(self.min.value)} (exclusive)")
             elif value < minimum:
-                raise SchemaValueError(f"too small: {value}, minimum {self.min.value}")
+                raise SchemaValueError(f"too small: {render_number(value)}, minimum {render_number(self.min.value)}")
 
         if self.max is not None:
             maximum = cast(int, self.max.value)
             if self.max.exclusive:
                 if value >= maximum:
-                    raise SchemaValueError(f"too large: {value}, maximum {self.max.value} (exclusive)")
+                    raise SchemaValueError(f"too large: {render_number(value)}, maximum {render_number(self.max.value)} (exclusive)")
             elif value > maximum:
-                raise SchemaValueError(f"too large: {value}, maximum {self.max.value}")
+                raise SchemaValueError(f"too large: {render_number(value)}, maximum {render_number(self.max.value)}")
 
         if self.multiple_of is not None and value % self.multiple_of.value != 0:
-            raise SchemaValueError(f"not a multiple of {self.multiple_of.value}: {value}")
+            raise SchemaValueError(f"not a multiple of {render_number(self.multiple_of.value)}: {render_number(value)}")
 
         if self.choices is not None and value not in self.choices.values:
-            raise SchemaValueError(f"not a choice: {value}, expected one of {self.choices.values}")
+            raise SchemaValueError(f"not a choice: {render_number(value)}, expected one of {render_number(self.choices.values)}")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -210,18 +253,29 @@ class Float(Shape):
         if self.max is not None and type(self.max.value) not in (int, float):
             raise TypeError(f"{name}.max: expected int or float, got {type(self.max.value).__name__}")
 
-        if self.min is not None and not math.isfinite(self.min.value):
-            raise ValueError(f"{name}.min: must be finite, got {self.min.value}")
+        if self.min is not None and not _finite(self.min.value):
+            raise ValueError(f"{name}.min: must be finite, got {render_number(self.min.value)}")
 
-        if self.max is not None and not math.isfinite(self.max.value):
-            raise ValueError(f"{name}.max: must be finite, got {self.max.value}")
+        if self.max is not None and not _finite(self.max.value):
+            raise ValueError(f"{name}.max: must be finite, got {render_number(self.max.value)}")
+
+        # `Int` fixes the type of its own step, and a float shape has the same
+        # stake in it: a step is written into the document beside the bounds, and
+        # one that names no float would be read there as a bound-like number no
+        # float reader can use.
+        if self.step is not None and type(self.step.value) not in (int, float):
+            raise TypeError(
+                f"{name}.step: expected int or float, got {type(self.step.value).__name__}")
+
+        if self.step is not None and not _finite(self.step.value):
+            raise ValueError(f"{name}.step: must be finite, got {render_number(self.step.value)}")
 
         if self.min is not None and self.max is not None:
             empty = self.min.value > self.max.value or (
                 self.min.value == self.max.value
                 and (self.min.exclusive or self.max.exclusive))
             if empty:
-                raise ValueError(f"{name}: empty range ({self.min.value}..{self.max.value})")
+                raise ValueError(f"{name}: empty range ({render_number(self.min.value)}..{render_number(self.max.value)})")
 
         if self.choices is not None:
             for c in self.choices.values:
@@ -271,32 +325,16 @@ class Float(Shape):
             raise SchemaValueError(f"not a choice: {value}, expected one of {self.choices.values}")
 
 
-def _check_path_file(value: str, mark: IsPathFile) -> None:
+# The extension is the whole of what a `FileHint` can be checked against here: it
+# is spelled in the value and the answer comes from the text alone. The sizes are
+# stated by the atom and travel in the document for the boundary that has the file
+# — reading them here would mean asking the filesystem, and an answer that can
+# change between the check and the use is not one the core is willing to give.
+def _check_file_hint(value: str, mark: FileHint) -> None:
     if mark.extensions and not any(value.lower().endswith(e) for e in mark.extensions):
         raise SchemaValueError(
             f"not an accepted file type: {value!r}, "
             f"expected one of {mark.extensions}")
-
-    try:
-        info = Path(value).stat()
-    except FileNotFoundError as error:
-        raise SchemaValueError(f"file does not exist: {value!r}") from error
-
-    except (OSError, ValueError) as error:
-        raise SchemaValueError(
-            f"cannot inspect file {value!r}: "
-            f"{type(error).__name__}: {error}") from error
-
-    if not S_ISREG(info.st_mode):
-        raise SchemaValueError(f"not a file: {value!r}")
-
-    if mark.min_size is not None and info.st_size < mark.min_size:
-        raise SchemaValueError(
-            f"file too small: {info.st_size} bytes, minimum {mark.min_size}")
-
-    if mark.max_size is not None and info.st_size > mark.max_size:
-        raise SchemaValueError(
-            f"file too large: {info.st_size} bytes, maximum {mark.max_size}")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -306,7 +344,7 @@ class Str(Shape):
     max: Max | None = None
     choices: Choices | None = None
     pattern: Pattern | None = None
-    is_path_file: IsPathFile | None = None
+    file_hint: FileHint | None = None
     is_password: IsPassword | None = None
     rows: Rows | None = None
     placeholder: Placeholder | None = None
@@ -325,7 +363,7 @@ class Str(Shape):
         check_opt(name, "max", self.max, Max)
         check_opt(name, "choices", self.choices, Choices)
         check_opt(name, "pattern", self.pattern, Pattern)
-        check_opt(name, "is_path_file", self.is_path_file, IsPathFile)
+        check_opt(name, "file_hint", self.file_hint, FileHint)
         check_opt(name, "is_password", self.is_password, IsPassword)
         check_opt(name, "rows", self.rows, Rows)
         check_opt(name, "placeholder", self.placeholder, Placeholder)
@@ -344,14 +382,14 @@ class Str(Shape):
             raise ValueError(f"{name}.max: exclusive bounds are not supported for lengths")
 
         if self.min is not None and cast(int, self.min.value) < 0:
-            raise ValueError(f"{name}.min must be >= 0, got {self.min.value}")
+            raise ValueError(f"{name}.min must be >= 0, got {render_number(self.min.value)}")
 
         if self.max is not None and cast(int, self.max.value) < 0:
-            raise ValueError(f"{name}.max must be >= 0, got {self.max.value}")
+            raise ValueError(f"{name}.max must be >= 0, got {render_number(self.max.value)}")
 
         if (self.min is not None and self.max is not None
                 and cast(int, self.min.value) > cast(int, self.max.value)):
-            raise ValueError(f"{name}: empty range ({self.min.value}..{self.max.value})")
+            raise ValueError(f"{name}: empty range ({render_number(self.min.value)}..{render_number(self.max.value)})")
 
         # Equality uses the pattern string, not the compiled regex object.
         object.__setattr__(
@@ -364,17 +402,17 @@ class Str(Shape):
                     raise TypeError(f"{name}.choices: expected str, got {type(c).__name__}")
 
                 if self.min is not None and len(c) < cast(int, self.min.value):
-                    raise ValueError(f"{name}.choices: {c!r} shorter than minimum {self.min.value}")
+                    raise ValueError(f"{name}.choices: {c!r} shorter than minimum {render_number(self.min.value)}")
 
                 if self.max is not None and len(c) > cast(int, self.max.value):
-                    raise ValueError(f"{name}.choices: {c!r} longer than maximum {self.max.value}")
+                    raise ValueError(f"{name}.choices: {c!r} longer than maximum {render_number(self.max.value)}")
 
                 if self._compiled is not None and self._compiled.fullmatch(c) is None:
                     raise ValueError(f"{name}.choices: {c!r} does not match pattern")
 
-                if self.is_path_file is not None:
+                if self.file_hint is not None:
                     try:
-                        _check_path_file(c, self.is_path_file)
+                        _check_file_hint(c, self.file_hint)
                     except SchemaValueError as e:
                         raise ValueError(f"{name}.choices: {e.leaf}") from e
 
@@ -383,10 +421,10 @@ class Str(Shape):
             raise SchemaTypeError(f"expected str, got {type(value).__name__}")
 
         if self.min is not None and len(value) < cast(int, self.min.value):
-            raise SchemaValueError(f"too short: {len(value)} chars, minimum {self.min.value}")
+            raise SchemaValueError(f"too short: {len(value)} chars, minimum {render_number(self.min.value)}")
 
         if self.max is not None and len(value) > cast(int, self.max.value):
-            raise SchemaValueError(f"too long: {len(value)} chars, maximum {self.max.value}")
+            raise SchemaValueError(f"too long: {len(value)} chars, maximum {render_number(self.max.value)}")
 
         if self._compiled is not None and self._compiled.fullmatch(value) is None:
             pattern = cast(Pattern, self.pattern)
@@ -394,8 +432,8 @@ class Str(Shape):
                 raise SchemaValueError(pattern.message)
             raise SchemaValueError(f"does not match pattern {pattern.value!r}")
 
-        if self.is_path_file is not None:
-            _check_path_file(value, self.is_path_file)
+        if self.file_hint is not None:
+            _check_file_hint(value, self.file_hint)
 
         if self.choices is not None and value not in self.choices.values:
             raise SchemaValueError(f"not a choice: {value!r}, expected one of {self.choices.values}")
@@ -472,7 +510,7 @@ class Date(Shape):
             hi = self.max.value - timedelta(days=1) if self.max.exclusive else self.max.value
 
         if lo is not None and hi is not None and lo > hi:
-            raise ValueError(f"{name}: empty range ({self.min.value}..{self.max.value})")
+            raise ValueError(f"{name}: empty range ({render_number(self.min.value)}..{render_number(self.max.value)})")
 
         if self.choices is not None:
             for c in self.choices.values:
@@ -567,7 +605,7 @@ class Time(Shape):
                 self.min.value == self.max.value
                 and (self.min.exclusive or self.max.exclusive))
             if empty:
-                raise ValueError(f"{name}: empty range ({self.min.value}..{self.max.value})")
+                raise ValueError(f"{name}: empty range ({render_number(self.min.value)}..{render_number(self.max.value)})")
 
         if self.choices is not None:
             for c in self.choices.values:
@@ -680,6 +718,14 @@ class List(Shape):
             raise TypeError(f"{name}.item must be a non-empty tuple of shapes")
         if duplicate_options(self.item):
             raise ValueError(f"{name}.item has duplicate option types")
+        # The same identity rule a field applies to its options. A list is
+        # public API and can be built directly, and the items it accepts are
+        # what its elements name themselves by, so the rule belongs here too
+        # rather than only where a compiled field happens to pass through.
+        clashing = duplicate_discriminators(self.item)
+        if clashing:
+            raise ValueError(
+                f"{name}.item: duplicate discriminator name(s): {', '.join(clashing)}")
         if len(self.item) == 1 and isinstance(self.item[0], NoneShape):
             raise TypeError(f"{name}.item cannot be NoneShape")
 
@@ -700,14 +746,14 @@ class List(Shape):
             raise ValueError(f"{name}.max: exclusive bounds are not supported for lengths")
 
         if self.min is not None and cast(int, self.min.value) < 0:
-            raise ValueError(f"{name}.min must be >= 0, got {self.min.value}")
+            raise ValueError(f"{name}.min must be >= 0, got {render_number(self.min.value)}")
 
         if self.max is not None and cast(int, self.max.value) < 0:
-            raise ValueError(f"{name}.max must be >= 0, got {self.max.value}")
+            raise ValueError(f"{name}.max must be >= 0, got {render_number(self.max.value)}")
 
         if (self.min is not None and self.max is not None
                 and cast(int, self.min.value) > cast(int, self.max.value)):
-            raise ValueError(f"{name}: empty range ({self.min.value}..{self.max.value})")
+            raise ValueError(f"{name}: empty range ({render_number(self.min.value)}..{render_number(self.max.value)})")
 
     def option_id(self) -> str:
         return f"list[{' | '.join(item.option_id() for item in self.item)}]"
@@ -728,7 +774,7 @@ class List(Shape):
             raise SchemaTypeError(f"expected list, got {type(value).__name__}")
 
         if self.min is not None and len(value) < cast(int, self.min.value):
-            raise SchemaValueError(f"too few items: {len(value)}, minimum {self.min.value}")
+            raise SchemaValueError(f"too few items: {len(value)}, minimum {render_number(self.min.value)}")
 
         if self.max is not None and len(value) > cast(int, self.max.value):
-            raise SchemaValueError(f"too many items: {len(value)}, maximum {self.max.value}")
+            raise SchemaValueError(f"too many items: {len(value)}, maximum {render_number(self.max.value)}")

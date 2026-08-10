@@ -1,8 +1,9 @@
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import date, time
 
-from pytypehint.utils import type_name
+from pytypehint.utils import render_number, type_name
 
 
 _ORDERED = (int, float, date, time)
@@ -71,8 +72,15 @@ class Step:
         if type(self.value) not in (int, float):
             raise TypeError(f"{name}.value must be a number, got {type(self.value).__name__}")
 
+        # `nan` is neither positive nor negative, so `<= 0` lets it through, and
+        # `inf` is positive without being a step. Both would reach the portable
+        # document as `NaN`/`Infinity`, which no JSON reader accepts, and `nan`
+        # also makes a shape compare unequal to an identically written one.
+        if type(self.value) is float and not math.isfinite(self.value):
+            raise ValueError(f"{name}.value must be finite, got {self.value}")
+
         if self.value <= 0:
-            raise ValueError(f"{name}.value must be > 0, got {self.value}")
+            raise ValueError(f"{name}.value must be > 0, got {render_number(self.value)}")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -152,7 +160,7 @@ class MultipleOf:
             raise TypeError(f"{name}.value must be int, got {type(self.value).__name__}")
 
         if self.value <= 0:
-            raise ValueError(f"{name}.value must be > 0, got {self.value}")
+            raise ValueError(f"{name}.value must be > 0, got {render_number(self.value)}")
 
 
 @dataclass(frozen=True)
@@ -196,11 +204,16 @@ class Rows:
             raise TypeError(f"{name}.value must be int, got {type(self.value).__name__}")
 
         if self.value <= 0:
-            raise ValueError(f"{name}.value must be > 0, got {self.value}")
+            raise ValueError(f"{name}.value must be > 0, got {render_number(self.value)}")
 
 
+# Marks a `str` that names a file and carries that file's contract: which
+# extensions it may take, and the sizes it must fall between. The core validates
+# the extension, which is a fact about the text, and states the sizes without
+# checking them — a size is a fact about the world, and the answer is only true
+# at the boundary that has the file in hand.
 @dataclass(frozen=True, kw_only=True)
-class IsPathFile:
+class FileHint:
     extensions: tuple[str, ...] = ()
     min_size: int | None = None
     max_size: int | None = None
@@ -232,11 +245,11 @@ class IsPathFile:
                 raise TypeError(f"{name}.{attribute} must be int or None, got {type(size).__name__}")
 
             if size < 0:
-                raise ValueError(f"{name}.{attribute} must be >= 0, got {size}")
+                raise ValueError(f"{name}.{attribute} must be >= 0, got {render_number(size)}")
 
         if (self.min_size is not None and self.max_size is not None
                 and self.min_size > self.max_size):
-            raise ValueError(f"{name}: min_size {self.min_size} exceeds max_size {self.max_size}")
+            raise ValueError(f"{name}: min_size {render_number(self.min_size)} exceeds max_size {render_number(self.max_size)}")
 
 
 @dataclass(frozen=True)

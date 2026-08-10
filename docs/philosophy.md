@@ -2,6 +2,29 @@
 
 ## Validate what the core can validate well
 
+The core verifies everything the schema can answer; nothing that requires asking
+the world. A length, a bound, a pattern, an option, an extension — every one of
+them is settled by the schema and the value alone, so the answer is the same in
+every process and at every moment. Nothing consults the filesystem, the network,
+the environment, the working directory or the clock.
+
+The rule is not modesty about what the core could do. A fact about the world is
+only true where and when it is read: a file that exists when a schema compiles
+may be gone when the value is used, so a check made here would be a promise the
+core cannot keep and the caller would trust anyway. And a validator that reads
+outside the process makes everything downstream of it read outside the process
+too — a document meant to be compared byte for byte would say one thing while a
+file existed and another after it was deleted. So the core states such a
+condition instead of testing it, and the boundary that has the file in hand is
+the one that applies it. `FileHint` is exactly this: the extension is spelled in
+the value and is validated, the sizes are facts about a file and travel as
+contract.
+
+This is the same rule `decode` already follows. There, the shape decides the
+reading and the text of a value never takes part in it; here, the schema decides
+the verdict and the world never takes part in it. Both refuse to let something
+outside the contract change what the contract means.
+
 The core accepts the full vocabulary even when a UI cannot render it. Nested
 lists and unions remain valid schemas; presentation belongs to the wrapper.
 `Signature.build` prepares keyword arguments but never executes the function.
@@ -75,6 +98,31 @@ numeric string. Coercion is wrapper policy and stays visible at that boundary.
 The vocabulary is closed: each restriction exists because accepting that case
 would break an advertised guarantee.
 
+## Decoding a representation is not coercing a value
+
+`decode` looks like an exception to that and is not one, and the difference is
+worth stating precisely because everything about the portable boundary rests on
+it.
+
+A portable tree cannot carry a `date`, a `time` or an enum member, and it loses
+the fraction of a whole `float`. Those four are not values the author wrote
+loosely; they are values the transport had no way to spell. Restoring them is
+reading the same value back, and the schema alone decides that a field spelled as
+text is a date. Nothing about the text takes part in the decision — `"2026-08-08"`
+in a `str` field stays a `str`, and where two options could read one spelling, no
+option is chosen at all.
+
+Coercion is the other thing: taking `"12"`, which the transport represented
+perfectly well as a string, and deciding it was meant as a number. That decision
+needs to know what wrote it — a form field, an argv token, an environment
+variable, a spreadsheet cell — and each of those answers differently for `""`,
+for `"1"` as a boolean, for a comma as a decimal separator. The core cannot know,
+so it does not guess; the wrapper knows, so it decides, at a boundary the reader
+can see.
+
+The test is whether the schema alone determines the answer. It does for a
+representation, and it does not for an interpretation. See [decode.md](decode.md).
+
 ## Defaults are recipes
 
 A default is certified once, then rematerialized whenever its key is missing.
@@ -115,6 +163,30 @@ versions its own ergonomics separately — `pytypehint-inspect` and its like.
 The core is what such a package reads, not where it lives. Proposals to add
 interpretive helpers here — optionality, flattening, traversal, "the real
 option of an `X | None`" — are answered by these two paragraphs.
+
+`to_dict` walks the schema and is not one of them. What it emits is the same
+structure, in a form that survives leaving the process: every field, every
+option, every atom, verbatim and in order. It answers no question a consumer
+would disagree about — there is no `optional` key, no `required` key, no
+flattening, no "real option" — precisely because those are the answers this
+section refuses to pick. A traversal that reports and a traversal that concludes
+are different things, and only the second one has to be wrong for somebody.
+
+## The contract is worth owning
+
+A schema that only exists as Python objects can only be read by Python, in this
+process. Every consumer that needed it elsewhere — a browser, a stored row,
+another language — had to invent a way to write it down, and inventing it twice
+produced two dialects that agreed until they did not.
+
+So the core owns the portable form of its own types, in both directions: what a
+contract looks like as data, and how a value spelled that way is read back. That
+is the whole of the addition, and its limits are the same as everywhere else. It
+describes; it does not present. It restores a representation; it does not
+interpret a value. It works on trees, never on bytes — `json.loads` and
+`json.dumps` stay outside, because the moment the core parsed text it would owe
+every consumer an opinion about encodings, precision and dialects that has
+nothing to do with types.
 
 ## Expanding the vocabulary
 

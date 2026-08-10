@@ -7,7 +7,7 @@ is stored for wrappers and ignored by validation.
 |---|---|
 | `Int` | `Min`, `Max`, `Choices`, `MultipleOf`, `Step`, `Slider`, `Placeholder`, `Extra` |
 | `Float` | `Min`, `Max`, `Choices`, `Step`, `Slider`, `Placeholder`, `Extra` |
-| `Str` | `Min`, `Max`, `Choices`, `Pattern`, `IsPathFile`, `IsPassword`, `Rows`, `Placeholder`, `Extra` |
+| `Str` | `Min`, `Max`, `Choices`, `Pattern`, `FileHint`, `IsPassword`, `Rows`, `Placeholder`, `Extra` |
 | `Date`, `Time` | `Min`, `Max`, `Choices`, `Placeholder`, `Extra` |
 | `List` | `Min`, `Max` for length, `Extra` |
 | `Bool`, `NoneShape` | `Extra` |
@@ -44,40 +44,52 @@ so what an empty value means is the wrapper's business.
 
 Several `Extra` atoms on one hint merge by key. The shape stores them as a
 sorted tuple of pairs, which keeps it hashable and its equality independent of
-the order the atoms were written in, and exposes them as a read-only `extras`
-dict built on access. Filtering by namespace is the wrapper's job:
+the order the atoms were written in, and exposes them as an `extras` dict rebuilt
+on each access. That dict is a detached snapshot rather than a view: writing to
+it, inserting into it or clearing it is allowed and never reaches the shape.
+Filtering by namespace is the wrapper's job:
 `{k: v for k, v in shape.extras.items() if k.startswith("ledform.")}`.
 
-`IsPathFile(extensions=(), min_size=None, max_size=None)` marks a `str` as a path
-to an existing file. Extensions are lowercase dotted suffixes; sizes are byte
-counts, each `int` or `None`, never negative, and `min_size` may not exceed
-`max_size` (`bool` is not an `int` here). Validation checks the extension, that
-the path exists, that it is a regular file and not a directory, and the size.
+`FileHint(extensions=(), min_size=None, max_size=None)` marks a `str` whose text
+names a file, and carries that file's contract: the suffixes the name may take and
+the byte sizes the file must fall between. Extensions are lowercase dotted
+suffixes and may not repeat; sizes are byte counts, each `int` or `None`, never
+negative, and `min_size` may not exceed `max_size` (`bool` is not an `int` here).
+Validation checks the extension against the text of the value, and stops there.
 
-The value is and remains exactly `str`: `pathlib.Path` is used only inside the
-validation, to inspect the file. Nothing is coerced, normalized, resolved or made
-absolute.
+The value is and remains exactly `str`. Nothing is coerced to `pathlib.Path`,
+normalized, resolved, expanded or made absolute, so the string that arrives is the
+string that validates and the string that is served.
 
 ```python
 from typing import Annotated
-from pytypehint import IsPathFile
+from pytypehint import FileHint
 
 FilePath = Annotated[
     str,
-    IsPathFile(
+    FileHint(
         extensions=(".pdf",),
         max_size=10 * 1024 * 1024,
     ),
 ]
 ```
 
-The guarantee is about the moment of validation: the file existed and met the
-contract when it was validated. Nothing promises it still does afterwards.
-Relative paths are accepted and interpreted against the current working
-directory, exactly as Python does; the value stays as written. A symlink is
-followed: a live link to a regular file is accepted, and a broken one fails as
-non-existent. Defaults and `Choices` are certified with these same guarantees
-when the schema compiles.
+Every validation the core performs is answered by the schema and the value between
+them, and this atom is where that line is easiest to see. An extension is text:
+`"report.pdf"` ends in `.pdf` or it does not, and the answer is the same in every
+process, on every machine, with or without a disk attached — so the core answers
+it. Existence and size are the world: they need a filesystem, a working directory
+and a moment in time before they mean anything at all. Those two are therefore
+stated rather than checked. They travel in the document as contract, for the
+wrapper to apply where it has the file in hand — at the upload, at the
+command-line argument, at the request that actually opens the bytes.
+
+The division is the general rule applied to one atom, and
+[philosophy.md](philosophy.md) sets out why it is a gain rather than a
+renunciation: a fact about the world is only true where and when it is read, and a
+validator that reads outside the process takes the determinism of
+[the document](contract.md) with it. The core describes the file; the wrapper
+verifies it.
 
 `Label(text)` and `Description(text)` are non-empty field-level notation.
 
@@ -90,9 +102,9 @@ wrapper. It never changes resolution or defaults.
 The schema rejects empty ranges; choices outside bounds or failing pattern,
 multiple or file rules; ranges containing no valid multiple; sliders
 without both bounds; wrong bound types; and `OptionalToggle` on a non-optional
-field. A choice under `IsPathFile` must satisfy the whole file contract, not only
-its suffix, and so must a certified default. These contradictions fail during
-schema compilation because a compiled
+field. A choice under `FileHint` must carry an accepted extension, and so must a
+certified default — that is the whole of the contract the core can settle here.
+These contradictions fail during schema compilation because a compiled
 schema must be structurally valid. Compilation rejects contradictions it can
 determine exactly; it does not attempt a general satisfiability proof across
 constraints such as a regular expression combined with length bounds.
