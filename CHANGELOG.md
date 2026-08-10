@@ -22,6 +22,7 @@ atom follows it.
 What breaks is listed first, then `decode`, then the document `to_dict` writes,
 then what validation and its errors guarantee.
 
+
 - Breaking: `IsPathFile` is now `FileHint`, and the core no longer touches the
   filesystem. The atom keeps its three fields — `extensions`, `min_size`,
   `max_size` — and every cross-check between them; what it loses is the
