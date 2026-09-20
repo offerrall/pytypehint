@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.0] — Unreleased
+## [1.1.0] — 2026-20-09
 
 - Add fixed tuples (`tuple[X, Y]`), variadic tuples (`tuple[X, ...]`) and empty
   tuples (`tuple[()]`), including nested types, unions and per-position atoms.
