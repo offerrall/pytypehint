@@ -473,15 +473,14 @@ _FROZEN_SURFACE = [
     "Rows", "Extra", "OptionalToggle",
     "SchemaTypeError", "SchemaValueError",
     "Struct", "Field", "Signature",
-    "Shape", "Int", "Float", "Str", "Bool", "Date", "Time", "List",
+    "Shape", "Int", "Float", "Str", "Bool", "Date", "Time", "List", "Tuple",
     "NoneShape", "EnumShape",
     "MISSING",
 ]
 
 
-def test_the_public_surface_grows_by_no_new_names():
-    """'the public surface grows by no new names' — order included, so a diff of
-    the module reads as a diff of the contract."""
+def test_the_public_surface_matches_the_release():
+    """Public exports, including the Tuple shape added in 1.1.0."""
     assert pytypehint.__all__ == _FROZEN_SURFACE
 
 
@@ -505,7 +504,7 @@ def test_no_module_level_name_escapes_all_by_accident():
 
 
 def test_the_version_is_the_one_this_release_claims():
-    assert pytypehint.__version__ == "1.0.0"
+    assert pytypehint.__version__ == "1.1.0"
     assert "__version__" not in pytypehint.__all__
 
 

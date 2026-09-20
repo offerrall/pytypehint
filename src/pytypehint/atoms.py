@@ -72,10 +72,6 @@ class Step:
         if type(self.value) not in (int, float):
             raise TypeError(f"{name}.value must be a number, got {type(self.value).__name__}")
 
-        # `nan` is neither positive nor negative, so `<= 0` lets it through, and
-        # `inf` is positive without being a step. Both would reach the portable
-        # document as `NaN`/`Infinity`, which no JSON reader accepts, and `nan`
-        # also makes a shape compare unequal to an identically written one.
         if type(self.value) is float and not math.isfinite(self.value):
             raise ValueError(f"{name}.value must be finite, got {self.value}")
 
@@ -118,13 +114,9 @@ class Extra:
         if not self.key:
             raise ValueError(f"{name}.key must not be empty")
 
-        # The dot names the package that owns the key: several wrappers annotate
-        # one field, and provenance is what keeps their keys apart.
         if "." not in self.key:
             raise ValueError(f"{name}.key must be namespaced ('package.name'), got {self.key!r}")
 
-        # Unlike its sibling atoms the value may be empty: the core stores it and
-        # never reads it, so what emptiness means is the wrapper's business.
         if type(self.value) is not str:
             raise TypeError(f"{name}.value must be str, got {type(self.value).__name__}")
 
@@ -141,7 +133,7 @@ class Choices:
         if not self.values:
             raise ValueError(f"{name}.values must not be empty")
 
-        # Type belongs to the key because Python equates 1, 1.0 and True.
+        # Include type: Python equates 1, 1.0 and True.
         keys = [(type(v), v) for v in self.values]
         try:
             if len(keys) != len(set(keys)):
@@ -207,11 +199,6 @@ class Rows:
             raise ValueError(f"{name}.value must be > 0, got {render_number(self.value)}")
 
 
-# Marks a `str` that names a file and carries that file's contract: which
-# extensions it may take, and the sizes it must fall between. The core validates
-# the extension, which is a fact about the text, and states the sizes without
-# checking them — a size is a fact about the world, and the answer is only true
-# at the boundary that has the file in hand.
 @dataclass(frozen=True, kw_only=True)
 class FileHint:
     extensions: tuple[str, ...] = ()

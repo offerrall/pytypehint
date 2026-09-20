@@ -1,33 +1,17 @@
-"""Structured validation errors.
-
-Every validation failure carries the coordinate where it happened as data, not
-only inside its message. `path` walks from the root of the supplied input to the
-value that failed; `leaf` is the failure itself, with no path attached. `str()`
-renders the two into the exact line the schema has always produced, so wrappers
-can keep matching on text or switch to the structure.
-"""
-
-
 def _render(path, leaf: str) -> str:
-    # Integers are list indexes and render as "[0]"; everything else is a key.
     return "".join(f"[{s}]: " if type(s) is int else f"{s}: " for s in path) + leaf
 
 
-# BaseException.__reduce__ would rebuild from `args`, which holds the rendered
-# line — reconstruction would land on leaf=<whole line>, path=(), and only the
-# trailing state dict would put it right. Rebuild from the real arguments
-# instead, and keep the state so add_note() and wrapper attributes survive too.
+# Pickle the original leaf and path, not the rendered exception args.
 def _reduce(error):
     return (type(error), (error.leaf, error.path), error.__dict__)
 
 
 class SchemaTypeError(TypeError):
-    """A value had the wrong type. Subclasses TypeError; existing handlers still catch it."""
 
     def __init__(self, leaf: str, path: tuple = ()):
         self.leaf = leaf
         self.path: tuple = tuple(path)
-        # A single arg keeps str(error) equal to the rendered line.
         super().__init__(_render(self.path, self.leaf))
 
     def __reduce__(self):
@@ -35,7 +19,6 @@ class SchemaTypeError(TypeError):
 
 
 class SchemaValueError(ValueError):
-    """A value had the right type but broke a constraint. Subclasses ValueError."""
 
     def __init__(self, leaf: str, path: tuple = ()):
         self.leaf = leaf
@@ -46,9 +29,6 @@ class SchemaValueError(ValueError):
         return _reduce(self)
 
 
-# Notes are part of the diagnosis, not decoration: `matches no option` adds one
-# per candidate saying why that option rejected the value, and rebuilding the
-# error one level out would drop exactly the detail it was raised to carry.
 def _renote(rebuilt: Exception, original: Exception) -> Exception:
     for note in getattr(original, "__notes__", ()):
         rebuilt.add_note(note)
@@ -56,10 +36,7 @@ def _renote(rebuilt: Exception, original: Exception) -> Exception:
 
 
 def _prefixed(error: Exception, path: tuple) -> Exception:
-    """Re-raise `error` one level out, with `path` prepended and its leaf intact."""
     if isinstance(error, (SchemaTypeError, SchemaValueError)):
         return _renote(type(error)(error.leaf, (*path, *error.path)), error)
-    # A foreign TypeError/ValueError — a user factory or __post_init__ — has no
-    # structure to preserve, so its whole message becomes the leaf.
     cls = SchemaTypeError if isinstance(error, TypeError) else SchemaValueError
     return _renote(cls(str(error), path), error)

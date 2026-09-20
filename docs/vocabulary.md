@@ -1,124 +1,58 @@
-# Vocabulary
+# Types and API
 
-Validation is exact: a hint `T` accepts only `type(value) is T`. There is no
-coercion, subclass acceptance or `int`/`bool` leakage.
+Validation requires exact types: `float` rejects `int`, `int` rejects `bool`,
+and subclasses are rejected. [Decode](decode.md) restores portable representations
+before validation when needed.
 
-Values that arrive in a portable tree — where a `date`, a `time` and an enum
-member have no carrier of their own — pass through [`decode`](decode.md) first,
-which restores those spellings and nothing else. Everything below describes what
-`resolve` and `build` accept, after that step or without it.
+| Hint | Compiled shape |
+|---|---|
+| `int`, `float`, `str`, `bool` | `Int`, `Float`, `Str`, `Bool` |
+| `datetime.date`, `datetime.time` | `Date`, `Time` |
+| Enum subclass | `EnumShape` |
+| `None` in a union | `NoneShape` |
+| `list[X]` | `List` |
+| `tuple[X, Y]`, `tuple[X, ...]`, `tuple[()]` | `Tuple` |
+| Dataclass | `Struct` |
+| Union | Ordered tuple of shapes |
+| `Literal[...]` | `Int` or `Str` with `Choices` |
 
-| Hint | Shape | Example |
-|---|---|---|
-| `int` | `Int` | `n: int` |
-| `float` | `Float` | `ratio: float` |
-| `str` | `Str` | `name: str` |
-| `bool` | `Bool` | `active: bool` |
-| `datetime.date` | `Date` | `day: date` |
-| `datetime.time` | `Time` | `at: time` |
-| Enum subclass | `EnumShape` | `role: Role` |
-| `None` | `NoneShape` | normally part of `X \| None` |
-| `list[X]` | `List` | `tags: list[str]` |
-| dataclass | `Struct` | `page: Page` |
-| union | tuple of shapes | `value: int \| str` |
-| ambiguous union | tuple of shapes | `value: list[str] \| list[int]` |
-| `Literal[...]` | `Int` or `Str` with `Choices` | `mode: Literal["fast", "safe"]` |
+Floats must be finite; times must be naive with whole-second precision. Enums
+require exact members. `Literal` values must be uniformly `int` or `str`.
+Use `Annotated[float, Choices(values=(0.5, 1.0))]` for float choices.
 
-`float` does not accept `int`; `int` does not accept `bool`. `Time` requires a
-naive `time`. Enum values must be members of the exact enum class. `None` alone
-is rejected because it describes no useful field; use `X | None`.
-
-There is no path type. A file input is a `str` marked with `FileHint`, which
-carries the contract of the file that string names — the extensions it may take,
-and the sizes it must fall between — while the value stays exactly `str`. Of
-that contract the core validates only the extension, which the text of the value
-settles by itself; the sizes are declared, written into the portable document and
-checked where the file actually is, at the wrapper's boundary. The core never
-opens a path, never asks whether it exists, and never turns it into a
-`pathlib.Path`: a `str` marked this way is a `str` that says what it names, not a
-file the core has been to see. See [atoms.md](atoms.md).
-
-There is no `datetime` type either, and for a different reason: a combined
-timestamp cannot be read one way. Whether it is aware or naive, what precision it
-keeps and how it is written down are policy, and a field typed `datetime` would
-leave the answers unstated. Written as a dataclass the answers are the author's,
-and the schema says which ones they chose:
+Lists, tuples and dataclasses support nesting, recursion and unions. Dataclass
+input uses dictionaries; `build` constructs instances. Bare `None`, `list[None]`
+and tuple slots containing only `None` are rejected; `list[int | None]` is valid.
 
 ```python
-@dataclass
-class Timestamp:
-    day: date
-    at: time
-    utc_offset_minutes: int | None = None
+mixed: list[str | int]         # accepts ["a", 1]
+either: list[str] | list[int]  # needs {"$type": "list[str]", "$value": ["a"]}
 ```
 
-`build(decode(...))` returns it from `{"day": "2026-08-10", "at": "14:30",
-"utc_offset_minutes": 120}`, and the offset field is where the timezone policy
-lives — visible to every reader of the document instead of assumed from a type
-name. See [philosophy.md](philosophy.md).
+Union options retain declaration order. Put type constraints on the option:
+`Annotated[int, Min(0)] | str`. Field notation such as `Label` belongs on the
+outer field. See [atoms](atoms.md), [tuples](tuples.md) and
+[restrictions](restrictions.md).
 
-Lists validate their length and every indexed item. Nesting and union-valued
-items are supported:
+There is no `datetime` or path shape. Represent timestamp policy with a dataclass;
+use a `str` annotated with `FileHint` for file names.
 
-```python
-from dataclasses import dataclass
+## Public API
 
-@dataclass
-class Created:
-    id: int
+Everything public is exported from `pytypehint`:
 
-@dataclass
-class Deleted:
-    id: int
+- `struct_of`, `signature_of`;
+- `Struct`, `Field`, `Signature`;
+- `SchemaTypeError`, `SchemaValueError`;
+- `Shape`, `Int`, `Float`, `Str`, `Bool`, `Date`, `Time`, `List`, `Tuple`,
+  `NoneShape`, `EnumShape`;
+- `Min`, `Max`, `Choices`, `MultipleOf`, `Pattern`, `FileHint`;
+- `Label`, `Description`, `Placeholder`, `Step`, `Slider`, `IsPassword`, `Rows`,
+  `Extra`, `OptionalToggle`;
+- `MISSING`.
 
-matrix: list[list[int]]
-events: list[Created | Deleted]
-holes: list[int | None]
-```
-
-`None` is a valid item option: `list[int | None]` accepts `None` holes as values.
-A `None` item is data, not field optionality; `list[None]` alone remains
-rejected.
-
-## `list[str | int]` is not `list[str] | list[int]`
-
-Python allows both, and they say different things. The core keeps them apart.
-
-```python
-mixed: list[str | int]        # one list whose items may be either
-either: list[str] | list[int] # one list of str, or one list of int
-```
-
-`mixed` routes every element by its own exact type, so it takes its value
-directly:
-
-```python
-{"mixed": ["a", 1, "b", 2]}
-```
-
-`either` chooses once, for the whole list. Both options arrive as a `list`, so
-the value cannot say which one it is and the caller says it:
-
-```python
-{"either": {"$type": "list[str]", "$value": ["a", "b"]}}
-{"either": {"$type": "list[int]", "$value": [1, 2]}}
-```
-
-`["a", 1]` is valid for `mixed` and invalid for `either` under either option.
-The discriminator is required only where the runtime type is shared — see
-[build.md](build.md) for the wrapper and [restrictions.md](restrictions.md) for
-the identities it names.
-
-Dataclasses accept dictionaries as input. `build` recursively constructs the
-instance; input instances are rejected. Two or more dataclass alternatives use
-the inline `$type` discriminator described in [build.md](build.md), including as
-list items: `list[Shirt | Mug]` discriminates each element, while
-`list[Shirt] | list[Mug]` wraps the whole list.
-
-Union options retain user order. Metadata for a specific option belongs inside
-that option: `Annotated[int, Min(0)] | str`. Field atoms such as `Label` belong
-on the outer field layer.
-
-`Literal` is shorthand for exact choices. Its values must all have the same
-type and may be only `int` or `str`; float choices use
-`Annotated[float, Choices(values=(...))]`.
+`Struct` and `Signature` expose `.build(data)`, `.resolve(data)`, `.decode(data)`
+and `.to_dict()`. `Struct.fields` and `Signature.params` contain `Field` objects;
+`Field.shape` contains the available shapes, and `Field.default` is `MISSING`
+when no default exists. `Shape.option_id()` gives the discriminator identity.
+`Struct`, `Field` and `Signature` compare by identity; compile once and reuse.

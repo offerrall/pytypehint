@@ -27,7 +27,7 @@ from pytypehint.shapes import (
 from pytypehint.structure import _portable_options, _wrapped_options
 
 
-# README example; README "Guarantees"; docs/build.md.
+# Nested construction and docs/guarantees.md.
 @dataclass(frozen=True)
 class _Page:
     number: Annotated[int, Min(1)] = 1
@@ -41,7 +41,7 @@ class _Search:
     tags: list[str] = field(default_factory=list)
 
 
-def test_readme_example_is_executable_and_reports_the_documented_error():
+def test_nested_build_reports_the_field_error():
     schema = struct_of(_Search)
     assert schema.build({"query": "python", "page": {"size": 50}}) == _Search(
         query="python", page=_Page(number=1, size=50), tags=[])
@@ -51,12 +51,25 @@ def test_readme_example_is_executable_and_reports_the_documented_error():
     assert str(error.value) == "page: size: too large: 500, maximum 100"
 
 
-# README "Public API".
+def test_readme_color_tuple_example():
+    channel = Annotated[float, Min(0.0), Max(1.0)]
+    layer = make_dataclass("Layer", [
+        ("name", str),
+        ("color", tuple[channel, channel, channel, channel], (0.0, 0.0, 0.0, 1.0)),
+    ], frozen=True)
+    schema = struct_of(layer)
+    assert schema.build({"name": "Background", "color": (0.2, 0.8, 0.4, 1.0)}).color == (0.2, 0.8, 0.4, 1.0)
+    with pytest.raises(SchemaValueError) as error:
+        schema.build({"name": "Background", "color": (0.2, 2.0, 0.4, 1.0)})
+    assert str(error.value) == "color: [1]: too large: 2.0, maximum 1.0"
+
+
+# docs/vocabulary.md "Public API".
 def test_every_documented_public_name_is_exported_from_the_package():
     documented = {
         "struct_of", "signature_of", "Struct", "Field", "Signature",
         "SchemaTypeError", "SchemaValueError", "Shape", "Int", "Float",
-        "Str", "Bool", "Date", "Time", "List", "NoneShape", "EnumShape",
+        "Str", "Bool", "Date", "Time", "List", "Tuple", "NoneShape", "EnumShape",
         "Min", "Max", "Choices", "MultipleOf", "Pattern", "FileHint",
         "Label", "Description", "Placeholder", "Step", "Slider",
         "IsPassword", "Rows", "Extra", "OptionalToggle", "MISSING",

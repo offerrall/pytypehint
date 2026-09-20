@@ -172,14 +172,6 @@ def reject_set():
     return C
 
 
-def reject_tuple():
-    @dataclass
-    class C:
-        t: tuple[int, int] = (0, 0)
-
-    return C
-
-
 def reject_any():
     @dataclass
     class C:
@@ -201,7 +193,6 @@ UNSUPPORTED_TYPES = [
     reject_dict,
     reject_bare_dict,
     reject_set,
-    reject_tuple,
     reject_any,
     reject_plain_class_field,
 ]

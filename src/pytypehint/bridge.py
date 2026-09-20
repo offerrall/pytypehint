@@ -5,12 +5,14 @@ from dataclasses import (
     fields as dc_fields, is_dataclass,
 )
 from enum import Enum
-from typing import Annotated, Literal, Union, get_args, get_origin, get_type_hints
+from typing import (
+    Annotated, Literal, Tuple as TypingTuple, Union, get_args, get_origin, get_type_hints,
+)
 
 from pytypehint import atoms
 from pytypehint.atoms import Choices, Description, Extra, Label, OptionalToggle
 from pytypehint.shapes import (
-    Bool, Date, EnumShape, Float, Int, List, NoneShape, Shape, Str, Time,
+    Bool, Date, EnumShape, Float, Int, List, NoneShape, Shape, Str, Time, Tuple,
     duplicate_options,
 )
 from pytypehint.signature import Signature
@@ -34,9 +36,7 @@ def _atoms_of(shape_cls):
     table = {a: f.name for f in dc_fields(shape_cls)
              if (a := _atom_type(hints[f.name])) is not None}
 
-    # Extras merge into one field of key/value pairs, so no field is hinted
-    # `Extra | None` for the reflection above to find. The table still decides
-    # acceptance: shapes without the field keep rejecting Extra as unsupported.
+    # Extra has no atom-typed field for reflection to discover.
     if any(f.name == "_extras" for f in dc_fields(shape_cls)):
         table[Extra] = "_extras"
 
@@ -45,7 +45,7 @@ def _atoms_of(shape_cls):
 
 _VOCABULARY = {cls.pytype: (cls, _atoms_of(cls))
                for cls in (Int, Float, Bool, Str, Date, Time,
-                           NoneShape, List)}
+                           NoneShape, List, Tuple)}
 
 
 def _kwargs_of(meta, kind, table):
@@ -56,10 +56,6 @@ def _kwargs_of(meta, kind, table):
         if name is None:
             raise TypeError(f"unsupported metadata for {kind}: {m!r}")
 
-        # Extras layer per key, not per atom class: different keys accumulate,
-        # a repeated key is overwritten. Typing flattens Annotated before we see
-        # it, so the rightmost atom is the outer layer and the standard rule
-        # falls out of writing the key in order.
         if type(m) is Extra:
             extras[m.key] = m.value
             continue
@@ -89,22 +85,32 @@ def _hint_label(hint) -> str:
     return hint.__name__ if isinstance(hint, type) else str(hint).replace("typing.", "")
 
 
-# Two hints can read as different options and still compile to one shape:
-# Literal['a'] and str both become Str. Sharing a runtime type is not enough to
-# collide — list[str] and list[int] do, and a discriminator tells them apart —
-# but sharing the identity that discriminator would use leaves nothing to name.
-# List.item reports the collision by shape, which cannot name the hints the
-# author actually wrote — this can.
-def _reject_colliding_items(raw_options, item_options) -> None:
+def _reject_colliding_items(raw_options, item_options, container="list") -> None:
     seen: dict[tuple[type, str], object] = {}
     for hint, shape in zip(raw_options, item_options):
         key = (shape.pytype, shape.option_id())
         if key in seen:
             raise ValueError(
-                f"list items: {_hint_label(seen[key])} and {_hint_label(hint)} "
+                f"{container} items: {_hint_label(seen[key])} and {_hint_label(hint)} "
                 f"both compile to {shape.option_id()} — merge them into one option, "
                 f"or give each variant a dataclass and route with $type")
         seen[key] = hint
+
+
+def _item_options(item_hint, cache, container):
+    item_base, item_meta = _split_annotated(item_hint)
+    if any(isinstance(m, _FIELD_ATOMS) for m in item_meta):
+        raise TypeError(f"field atoms cannot apply to {container} items")
+    raw_options = _options_of(item_base)
+    if len(raw_options) > 1 and item_meta:
+        raise TypeError(
+            "metadata on a union of multiple types must go per option: "
+            "Annotated[int, Min(0)] | str")
+    item_options = ((_shape_of(item_hint, cache),) if len(raw_options) == 1
+                    else tuple(_shape_of(o, cache) for o in raw_options))
+    if len(raw_options) > 1:
+        _reject_colliding_items(raw_options, item_options, container)
+    return item_options
 
 
 def _shape_of(opt, cache: dict) -> Shape:
@@ -118,20 +124,23 @@ def _shape_of(opt, cache: dict) -> Shape:
 
     if get_origin(base) is list:
         (item_hint,) = get_args(base)
-        item_base, item_meta = _split_annotated(item_hint)
-        if any(isinstance(m, _FIELD_ATOMS) for m in item_meta):
-            raise TypeError("field atoms cannot apply to list items")
-        raw_options = _options_of(item_base)
-        if len(raw_options) > 1 and item_meta:
-            raise TypeError(
-                "metadata on a union of multiple types must go per option: "
-                "Annotated[int, Min(0)] | str")
-        item_options = ((_shape_of(item_hint, cache),) if len(raw_options) == 1
-                        else tuple(_shape_of(o, cache) for o in raw_options))
-        if len(raw_options) > 1:
-            _reject_colliding_items(raw_options, item_options)
+        item_options = _item_options(item_hint, cache, "list")
         return List(item=item_options,
                     **_kwargs_of(meta, "list", _VOCABULARY[list][1]))
+
+    if base is tuple or base is TypingTuple:
+        raise TypeError("tuple requires item types: tuple[X, Y] or tuple[X, ...]")
+
+    if get_origin(base) is tuple:
+        hints = get_args(base)
+        variadic = len(hints) == 2 and hints[1] is Ellipsis
+        if variadic:
+            hints = hints[:1]
+        if any(h is Ellipsis for h in hints):
+            raise TypeError("ellipsis is only supported in tuple[X, ...]")
+        return Tuple(items=tuple(_item_options(h, cache, "tuple") for h in hints),
+                     variadic=variadic,
+                     **_kwargs_of(meta, "tuple", _VOCABULARY[tuple][1]))
 
     if get_origin(base) is Literal:
         values = get_args(base)
@@ -182,7 +191,6 @@ def _field_of(name: str, hint, default, cache: dict) -> Field:
     options = _options_of(base_hint)
 
     if type_meta:
-        # None expresses optionality; type metadata targets the single real option.
         real_opts = [o for o in options if o is not type(None) and o is not None]
         if len(real_opts) == 0:
             raise TypeError(f"{name}: metadata on None: None is optionality, not a type")
@@ -190,13 +198,11 @@ def _field_of(name: str, hint, default, cache: dict) -> Field:
             raise TypeError(
                 f"{name}: metadata on a union of multiple types must go per option: "
                 f"Annotated[int, Min(0)] | str")
-        # Preserve the user's union-option order.
         options = tuple(
             Annotated[tuple([o, *type_meta])]
             if o is not type(None) and o is not None else o
             for o in options)
 
-    # typing flattens Annotated aliases; hoist their field atoms before compiling.
     hoisted: dict[type, object] = {}
     stripped = []
     for opt in options:
@@ -227,7 +233,6 @@ def _default_of(f):
     if f.default is not _DC_MISSING:
         return f.default
     if f.default_factory is not _DC_MISSING:
-        # The factory is the recipe and runs for each missing-key serving.
         return _Factory(f.default_factory)
     return MISSING
 
@@ -242,8 +247,6 @@ def _struct_of_class(cls: type, cache: dict) -> Struct:
 
     hints = get_type_hints(cls, include_extras=True)
 
-    # InitVar enters construction but is absent from the instance, so no Field can represent it.
-    # The resolved hint carries that fact itself; ClassVar resolves to ClassVar, not InitVar.
     initvars = sorted(n for n, h in hints.items() if isinstance(h, _InitVar))
     if initvars:
         raise TypeError(f"{initvars[0]}: InitVar fields are not supported")
@@ -263,7 +266,7 @@ def _struct_of_class(cls: type, cache: dict) -> Struct:
 
 
 def _validate_cache(cache: dict) -> None:
-    # Recursive fields certify after the complete shape graph exists.
+    # Recursive fields certify only after their complete graph exists.
     for struct in cache.values():
         for f in struct.fields:
             if not f._deferred:
@@ -312,7 +315,6 @@ def signature_of(fn) -> Signature:
         if p.kind is inspect.Parameter.POSITIONAL_ONLY:
             raise TypeError(f"{n}: positional-only parameters are not supported")
 
-        # An unhinted leading self/cls identifies an unbound method.
         if i == 0 and n in ("self", "cls") and n not in hints:
             raise TypeError(
                 f"{n}: looks like an unbound method — pytypehint takes "

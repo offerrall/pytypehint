@@ -1,8 +1,6 @@
 from pytypehint.bridge import struct_of, signature_of
 from pytypehint.atoms import (
-    # limit atoms
     Min, Max, Choices, MultipleOf, Pattern, FileHint,
-    # notation atoms
     Label, Description, Placeholder, Step, Slider, IsPassword, Rows, Extra,
     OptionalToggle,
 )
@@ -10,23 +8,21 @@ from pytypehint.errors import SchemaTypeError, SchemaValueError
 from pytypehint.structure import Struct, Field
 from pytypehint.signature import Signature
 from pytypehint.shapes import (
-    Shape, Int, Float, Str, Bool, Date, Time, List, NoneShape, EnumShape,
+    Shape, Int, Float, Str, Bool, Date, Time, List, Tuple, NoneShape, EnumShape,
 )
 from pytypehint.utils import MISSING
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     "struct_of",
     "signature_of",
-    # limit atoms
     "Min",
     "Max",
     "Choices",
     "MultipleOf",
     "Pattern",
     "FileHint",
-    # notation atoms
     "Label",
     "Description",
     "Placeholder",
@@ -36,14 +32,11 @@ __all__ = [
     "Rows",
     "Extra",
     "OptionalToggle",
-    # errors
     "SchemaTypeError",
     "SchemaValueError",
-    # compiled schema, for inspection
     "Struct",
     "Field",
     "Signature",
-    # shapes
     "Shape",
     "Int",
     "Float",
@@ -52,6 +45,7 @@ __all__ = [
     "Date",
     "Time",
     "List",
+    "Tuple",
     "NoneShape",
     "EnumShape",
     "MISSING",

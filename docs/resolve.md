@@ -1,19 +1,17 @@
 # Resolve
 
-`Struct.resolve(data)` and `Signature.resolve(data)` validate field by field,
-reject unknown or missing keys, and fill missing defaults with fresh values.
-They return a dictionary and do not construct dataclass instances from nested
-dictionaries.
+`Struct.resolve(data)` and `Signature.resolve(data)` return a new dictionary of
+validated values, filling defaults for missing keys at the current level.
+Unknown keys and missing required keys fail. Input must use exact Python types;
+portable data goes through [decode](decode.md) first.
 
-Validation reaches every depth; filling does not. A supplied value is checked
-all the way down — inside nested dictionaries, lists and unions — while defaults
-are served only for the keys missing at the level being resolved. A nested
-dataclass dictionary keeps exactly the keys it arrived with, and `build` fills
-that dataclass's own missing defaults while constructing it. The example below
-shows the shape of that split.
+Supplied values are validated at every depth and retained by reference. Nested
+dataclass dictionaries keep their original keys, and union discriminators stay
+in place. `resolve` does not construct nested instances or expand their defaults;
+[build](build.md) does that.
 
 ```python
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pytypehint import struct_of
 
 @dataclass
@@ -22,23 +20,13 @@ class Page:
 
 @dataclass
 class Query:
-    page: Page = field(default_factory=Page)
+    page: Page
 
-resolved = struct_of(Query).resolve({"page": {"size": 50}})
-# {'page': {'size': 50}}
+schema = struct_of(Query)
+assert schema.resolve({"page": {}}) == {"page": {}}
+assert schema.build({"page": {}}) == Query(Page(size=20))
 ```
 
-Use `resolve` when a wrapper must inspect validated data before construction—for
-example, to move an uploaded file or inject request context. Most standalone
-callers should use `build`.
-
-For a dataclass union, `resolve` validates `$type` and preserves it. `build`
-removes the discriminator when constructing the selected class. The same holds
-for the `$type`/`$value` wrapper of [build.md](build.md): `resolve` returns the
-wrapper as it was given, and `build` unwraps it. Input dataclass instances are
-rejected by both APIs.
-
-`resolve` expects exact Python, like `build`. A tree that arrived in a portable
-form goes through [`decode`](decode.md) first; the two are separate calls, and
-`resolve` never decodes anything on its own. A supplied value passes through
-`resolve` by reference — it is validated, never transformed.
+Use `resolve` to inspect validated data before construction. Use `build` when you
+want the finished object. A default may itself construct an instance; see
+[defaults](defaults.md).

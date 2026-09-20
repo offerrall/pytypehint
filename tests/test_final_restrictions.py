@@ -9,39 +9,16 @@ from pytypehint import EnumShape, signature_of, struct_of
 
 
 DOCUMENTED_MESSAGES = (
-    "page: expected dict, got Page instance",
-    "unsupported type: <class 'complex'>",
-    "list requires an item type: list[X]",
-    "Field 'x': None must be accompanied by another option",
-    "args: variadic parameters (*args/**kwargs) are not supported",
-    "x: positional-only parameters are not supported",
-    "x: missing type hint",
-    "lambdas have no usable name; use a named function",
-    "expected a plain function, got <bound method Service.run of service> — bound methods, partials and callable objects are not supported: wrap the call in a plain function (def run(q: str): return service.search(q))",
-    "x: InitVar fields are not supported",
-    "x: init=False fields are not supported",
-    "field atoms cannot apply to list items",
-    "unsupported type: <class 'datetime.datetime'>",
-    "EnumShape.cls: Flag enums are not supported (OR-combinable, not a closed set)",
-    "EnumShape.cls: enum has no members",
-    "value: must be naive (no tzinfo): 12:00:00+00:00",
-    "value: not finite: nan",
-    "leaf: n: default: too large: 2, maximum 1",
-    "self: looks like an unbound method — pytypehint takes plain functions; wrap the call (def run(q: str): return service.search(q))",
-    "RecursionError: maximum recursion depth exceeded",
-    "Field 'x': duplicate discriminator name(s): Same",
-    "Field 'x': duplicate discriminator name(s): str",
-    'value: ambiguous dict: field accepts File | Url — add "$type" naming the variant',
-    "value: $type: not a choice: 'Other', expected one of ('File', 'Url')",
-    "value: $type: expected str, got int",
+    "count: default: expected int, got str",
     "cart: items: [0]: size: default: too large: 145, maximum 100",
+    "terms: $value: [1]: expected str, got int",
 )
 
 
 def test_documented_message_contract_is_pinned_character_for_character():
-    root = Path(__file__).parents[1]
-    docs = (root / "docs" / "restrictions.md").read_text(encoding="utf-8")
-    docs += (root / "docs" / "build.md").read_text(encoding="utf-8")
+    root = Path(__file__).parents[1] / "docs"
+    docs = "\n".join((root / name).read_text(encoding="utf-8")
+                     for name in ("build.md", "defaults.md"))
     for message in DOCUMENTED_MESSAGES:
         assert message in docs
 

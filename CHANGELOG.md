@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0] — Unreleased
+
+- Add fixed tuples (`tuple[X, Y]`), variadic tuples (`tuple[X, ...]`) and empty
+  tuples (`tuple[()]`), including nested types, unions and per-position atoms.
+- Export the `Tuple` shape. Exact tuple validation, length constraints, indexed
+  errors, fresh default contents and recursive dataclass construction use the
+  same rules as the existing collection types.
+- Restore portable arrays as tuples through `decode`; `resolve` and `build`
+  retain exact Python types. Ambiguous unions require an explicit discriminator.
+- Describe tuple schemas and defaults in `to_dict()`. The portable format remains
+  `v: 1`; consumers need tuple support to read the new shape type.
+- Shorten the README and move detailed guarantees and API reference into docs.
+
 ## [1.0.0] - 2026-08-10
 
 The core now owns the portable form of its own types. Until this release a

@@ -87,6 +87,10 @@ def _list_hint(meta):
     return Annotated[tuple([list[int], *meta])]
 
 
+def _tuple_hint(meta):
+    return Annotated[tuple([tuple[int, ...], *meta])]
+
+
 def _none_hint(meta):
     # None alone is optionality, never a field type: reach NoneShape through a union.
     return int | Annotated[tuple([type(None), *meta])]
@@ -169,6 +173,11 @@ _MATRIX = [
         Extra: (Extra("pkg.k", "e"),),
     }),
     ("list", list, _list_hint, {
+        Min: (Min(0),),
+        Max: (Max(10),),
+        Extra: (Extra("pkg.k", "e"),),
+    }),
+    ("tuple", tuple, _tuple_hint, {
         Min: (Min(0),),
         Max: (Max(10),),
         Extra: (Extra("pkg.k", "e"),),

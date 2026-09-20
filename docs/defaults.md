@@ -1,46 +1,32 @@
 # Defaults
 
-A default is a recipe. It is certified when the schema compiles and
-rematerialized whenever a build or resolve omits its key.
+Defaults are certified when `struct_of` or `signature_of` compiles the schema,
+then rematerialized and validated whenever their key is missing.
+A supplied key never runs its default recipe.
 
-| Default | Rematerialization |
+| Default | Each missing-key serving |
 |---|---|
-| `int`, `float`, `str`, `bool`, `date`, `time`, `None` | passed as is; immutable |
-| Enum member | passed as is; members are singletons |
-| list | fresh list; items rematerialized recursively |
-| dataclass instance | reconstructed through its constructor |
-| `default_factory` | factory called again |
+| Scalar, `date`, `time`, `None` | Reused; immutable |
+| Enum member | Reused; singleton |
+| List | New list, contents rematerialized recursively |
+| Tuple | Contents rematerialized recursively |
+| Dataclass instance | Reconstructed through its constructor |
+| `default_factory` | Called again |
 
-Recipes run once at `struct_of`/`signature_of` for certification and once per
-missing-key serving. A provided key never runs its recipe. The served value is
-validated each time, so an impure recipe that drifts outside its schema
-fails with a `default` path segment.
+Factories run once for certification and once per serving. Instance reconstruction
+runs `__init__` and `__post_init__`; equality is preserved, internal aliases are
+not. Tuple immutability does not cause mutable contents to be shared.
 
-Certification uses the field's full contract, and no part of that contract reaches
-outside the schema and the value. A default under `FileHint` is validated like any
-other input, which here means its extension: the schema does not compile unless the
-default names an accepted kind of file. Whether that file exists and how large it
-is are not settled here and cannot be — they are facts about the world, true only
-in the process and instant that asks, so they travel in the document and are
-applied by the wrapper where the value is actually used. A rematerialized path
-default is still exactly `str`; see [atoms.md](atoms.md).
+Recipes must be pure and deterministic, without shared mutable state or observable
+side effects. Do not mutate recipe objects or the certified `Field.default`.
+The core cannot enforce purity, but invalid values fail both at certification and
+at serving, with a `default` path segment:
 
-Defaults must be pure and deterministic: same recipe, equal result, no shared
-mutable state or observable side effects. The core cannot prove that promise.
-Mutating an externally held recipe object or the certified `field.default`
-violates the same rule from outside and remains the author's responsibility. The
-same promise covers the input: `build` validates it once and constructs from it,
-so the core watches neither concurrent mutation nor a `__post_init__` that edits
-the input data. See [build.md](build.md).
+```text
+count: default: expected int, got str
+```
 
-Instance reconstruction preserves equality, not internal alias topology. It
-runs `__init__` and `__post_init__` on every serving.
-
-Python rejects a non-frozen dataclass instance used directly as a dataclass
-field default before pytypehint runs (`ValueError: mutable default ... is not
-allowed`). Use `field(default_factory=...)`. Function defaults have no such
-Python restriction and may use an instance directly.
-
-Calling a function directly still uses Python's shared defaults. Fresh function
-defaults apply only when data passes through `signature_of(fn).resolve(...)` or
-`.build(...)`.
+Use `field(default_factory=...)` for mutable dataclass field defaults, as Python
+requires. Function defaults have no such restriction, but fresh defaults apply
+only through `signature_of(fn).resolve(...)` or `.build(...)`. Calling the function
+directly retains Python's usual shared-default behavior.
