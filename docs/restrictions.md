@@ -54,7 +54,8 @@ contents never choose the variant.
 ## Runtime limits
 
 - Validation requires exact types, including plain dictionaries and exact lists
-  or tuples. Input dataclass instances are rejected; defaults may be instances.
+  or tuples. `resolve`/`build` reject input dataclass instances; defaults may be instances.
+  [Immutable constructors](immutable.md) accept already validated immutable instances.
 - Floats, bounds, choices and numeric steps must be finite. Integer float bounds
   that overflow float conversion are rejected; finite nonrepresentable integers
   remain exact bounds.

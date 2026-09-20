@@ -41,7 +41,7 @@ use a `str` annotated with `FileHint` for file names.
 
 Everything public is exported from `pytypehint`:
 
-- `struct_of`, `signature_of`;
+- `struct_of`, `signature_of`, `immutable`;
 - `Struct`, `Field`, `Signature`;
 - `SchemaTypeError`, `SchemaValueError`;
 - `Shape`, `Int`, `Float`, `Str`, `Bool`, `Date`, `Time`, `List`, `Tuple`,
@@ -56,3 +56,6 @@ and `.to_dict()`. `Struct.fields` and `Signature.params` contain `Field` objects
 `Field.shape` contains the available shapes, and `Field.default` is `MISSING`
 when no default exists. `Shape.option_id()` gives the discriminator identity.
 `Struct`, `Field` and `Signature` compare by identity; compile once and reuse.
+
+`@immutable` creates deeply immutable, automatically validated dataclasses with a
+restricted field vocabulary. See [Immutable models](immutable.md).

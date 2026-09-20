@@ -1,4 +1,5 @@
 from pytypehint.bridge import struct_of, signature_of
+from pytypehint.immutable import immutable
 from pytypehint.atoms import (
     Min, Max, Choices, MultipleOf, Pattern, FileHint,
     Label, Description, Placeholder, Step, Slider, IsPassword, Rows, Extra,
@@ -12,9 +13,10 @@ from pytypehint.shapes import (
 )
 from pytypehint.utils import MISSING
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
+    "immutable",
     "struct_of",
     "signature_of",
     "Min",

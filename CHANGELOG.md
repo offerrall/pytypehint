@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0] — Unreleased
+
+- Add `@immutable`: deeply immutable, slotted, keyword-only dataclasses with
+  automatic validation on construction and `dataclasses.replace`.
+- Restrict fields to exact immutable scalars, tuples and other `@immutable`
+  models. Reject mutable containers, ordinary dataclasses and enums.
+- Reuse validated child instances without walking their fields again. Check new
+  tuples and their constraints; track successful instances with weak references.
+- Preserve normal default-factory execution; support decorated inheritance,
+  recursive model definitions, copying and validated pickle reconstruction.
+- Keep the implementation in `immutable.py`; existing schema operations retain
+  their behavior. Add examples and the immutable model contract.
+
 ## [1.1.0] — 2026-20-09
 
 - Add fixed tuples (`tuple[X, Y]`), variadic tuples (`tuple[X, ...]`) and empty

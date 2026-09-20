@@ -467,6 +467,7 @@ def test_a_dataclass_named_like_a_scalar_shares_an_id_and_stays_admissible():
 # about, but it is the kind of change a 1.0.0 makes deliberately rather than by
 # drift, so the list is written out and compared rather than derived.
 _FROZEN_SURFACE = [
+    "immutable",
     "struct_of", "signature_of",
     "Min", "Max", "Choices", "MultipleOf", "Pattern", "FileHint",
     "Label", "Description", "Placeholder", "Step", "Slider", "IsPassword",
@@ -480,7 +481,7 @@ _FROZEN_SURFACE = [
 
 
 def test_the_public_surface_matches_the_release():
-    """Public exports, including the Tuple shape added in 1.1.0."""
+    """Public exports, including immutable added in 1.2.0."""
     assert pytypehint.__all__ == _FROZEN_SURFACE
 
 
@@ -504,7 +505,7 @@ def test_no_module_level_name_escapes_all_by_accident():
 
 
 def test_the_version_is_the_one_this_release_claims():
-    assert pytypehint.__version__ == "1.1.0"
+    assert pytypehint.__version__ == "1.2.0"
     assert "__version__" not in pytypehint.__all__
 
 

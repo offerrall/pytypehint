@@ -17,4 +17,8 @@
   checks belong to the consumer; user factories and constructors remain user code.
 - `Signature.build` prepares kwargs and never calls the function.
 
+`@immutable` additionally validates construction and restricts fields to deeply
+immutable values, allowing already validated children to be reused without
+traversing them again. See [its contract and limits](immutable.md).
+
 For accepted definitions and runtime limits, see [restrictions](restrictions.md).
