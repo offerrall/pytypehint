@@ -1,4 +1,4 @@
-# Restrictions
+# Limits
 
 Only the [documented types](vocabulary.md) and [atoms](atoms.md) are supported.
 Unsupported hints and invalid schemas fail during compilation.
@@ -25,7 +25,9 @@ def search(query: str):
 ```
 
 `datetime`, path objects, mappings, sets and arbitrary classes are outside the
-vocabulary. Use dataclasses to represent additional structure or policy.
+vocabulary. Represent timestamp policy and other structure with a dataclass, and
+file names with a `str` annotated with [`FileHint`](atoms.md#file-names), which
+checks the suffix only.
 
 ## Option identity
 
@@ -66,8 +68,7 @@ contents never choose the variant.
 - Validation stops at the first error. Constructor exceptions propagate unchanged.
 - Cycles and excessive nesting may raise raw `RecursionError` in decode, resolve
   or build. Recursive schemas are supported; cyclic input values are not.
-- Factories must be pure, and input must not change during construction.
-
-`FileHint` checks the string's suffix only; existence, kind and size require
-consumer checks. Portable spelling collisions need [decode wrappers](decode.md#unions),
-even when their restored Python types would be distinct.
+- [Default recipes](defaults.md) must be pure, and input must not change during
+  construction.
+- Portable spelling collisions need [decode wrappers](decode.md#unions), even
+  when their restored Python types would be distinct.

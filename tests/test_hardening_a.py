@@ -505,7 +505,7 @@ def test_no_module_level_name_escapes_all_by_accident():
 
 
 def test_the_version_is_the_one_this_release_claims():
-    assert pytypehint.__version__ == "1.2.1"
+    assert pytypehint.__version__ == "1.2.2"
     assert "__version__" not in pytypehint.__all__
 
 

@@ -42,7 +42,7 @@ Dataclass discriminators use the class name. Other wrappers use
 Discriminators are accepted only where needed, including inside sequence items.
 A lone dataclass rejects `$type` as an unexpected key. When dataclass and wrapped
 options coexist, `$value` distinguishes the wrapper from a dataclass dictionary.
-See [option identities](restrictions.md#option-identity).
+See [option identities](limits.md#option-identity).
 
 `resolve` preserves validated discriminators; `build` removes them while
 constructing the selected values. Defaults are Python values and need no wrapper.

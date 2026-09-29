@@ -5,7 +5,17 @@ into inspectable shapes, validate exact values, and construct ordinary objects.
 
 The core owns types, constraints, defaults and their portable representation.
 Consumers own input coercion, presentation, JSON text, function invocation and
-checks requiring files, networks or application state.
+checks requiring files, networks or application state:
+
+| Task | Responsible layer |
+|---|---|
+| Define ordinary models | Python dataclasses and type hints |
+| Inspect/export schemas, validate values, restore portable types, construct models | pytypehint |
+| Parse JSON, coerce form/CLI input, render controls, collect multiple errors | Consumer |
+| Call functions, check files, manage persistence/authentication | Application |
+
+Direct dataclass construction is simpler for trusted internal objects. Use
+pytypehint when you need strict input validation or a shared inspectable contract.
 
 Keep union selection explicit when types or portable spellings collide. Keep
 missing values separate from `None`. Report the first error with its path.

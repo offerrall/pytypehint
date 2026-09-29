@@ -32,10 +32,7 @@ either: list[str] | list[int]  # needs {"$type": "list[str]", "$value": ["a"]}
 Union options retain declaration order. Put type constraints on the option:
 `Annotated[int, Min(0)] | str`. Field notation such as `Label` belongs on the
 outer field. See [atoms](atoms.md), [tuples](tuples.md) and
-[restrictions](restrictions.md).
-
-There is no `datetime` or path shape. Represent timestamp policy with a dataclass;
-use a `str` annotated with `FileHint` for file names.
+[limits](limits.md).
 
 ## Public API
 
@@ -51,10 +48,11 @@ Everything public is exported from `pytypehint`:
   `Extra`, `OptionalToggle`;
 - `MISSING`.
 
-`Struct` and `Signature` expose `.build(data)`, `.resolve(data)`, `.decode(data)`
-and `.to_dict()`. `Struct.fields` and `Signature.params` contain `Field` objects;
-`Field.shape` contains the available shapes, and `Field.default` is `MISSING`
-when no default exists. `Shape.option_id()` gives the discriminator identity.
+`Struct` and `Signature` expose the [four operations](overview.md#the-four-operations):
+`.build(data)`, `.resolve(data)`, `.decode(data)` and `.to_dict()`.
+`Struct.fields` and `Signature.params` contain `Field` objects; `Field.shape`
+contains the available shapes, and `Field.default` is `MISSING` when no default
+exists. `Shape.option_id()` gives the discriminator identity.
 `Struct`, `Field` and `Signature` compare by identity; compile once and reuse.
 
 `@immutable` creates deeply immutable, automatically validated dataclasses with a

@@ -12,6 +12,20 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Beltrán Offerrall" }]
 dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Documentation = "https://offerrall.github.io/pytypehint/"
+Repository = "https://github.com/offerrall/pytypehint"
+Changelog = "https://github.com/offerrall/pytypehint/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["mypy", "pytest", "hypothesis"]

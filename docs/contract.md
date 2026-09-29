@@ -37,8 +37,8 @@ used in data discriminators; consumers must not substitute the definition ID.
 
 `v` versions the format, not the library. Removing a key or changing its meaning
 raises `v`; additive keys do not. Ignore unknown keys and reject unsupported shape
-types. Tuple nodes were added in library 1.1.0 while retaining format version 1;
-consumers need tuple support to read them.
+types. Format version 1 includes `tuple` nodes; consumers need tuple support to
+read them.
 
 ## Fields and nodes
 
@@ -51,7 +51,7 @@ There are no `optional`, `required` or `nullable` keys: inspect `default` and
 Each node has `type`. In a slot containing several options, each also has `id`,
 its `Shape.option_id()`. IDs are unique within the dataclass namespace and within
 the other-option namespace, not across both. Preserve option positions; use IDs
-for discriminators. See [option identities](restrictions.md#option-identity).
+for discriminators. See [option identities](limits.md#option-identity).
 
 | `type` | Additional keys when applicable |
 |---|---|

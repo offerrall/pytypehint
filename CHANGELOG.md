@@ -1,11 +1,28 @@
 # Changelog
 
-## [1.2.1] — 2026-09-29
+## 1.2.2 - 2026-09-29
+
+### Changed
+
+- Documentation only: the README becomes a short entrance to the documentation
+  site at https://offerrall.github.io/pytypehint/, and `docs/overview.md` holds
+  the introduction.
+- Rename `docs/restrictions.md` to `docs/limits.md` ("Limits") and
+  `docs/philosophy.md` to `docs/design.md`. Merge
+  `docs/comparison.md` into Design and remove `docs/guarantees.md`, whose points
+  each live on their own page.
+- Add `[project.urls]` (documentation, repository, changelog) and Python
+  classifiers to the package metadata.
+- Fix the 1.1.0 release date in this changelog and date every entry.
+
+The code is the same as 1.2.1.
+
+## 1.2.1 - 2026-09-29
 
 - Documentation only: the README title no longer carries the version, and the
   1.2.0 entry below has its release date. The code is the same as 1.2.0.
 
-## [1.2.0] — 2026-09-20
+## 1.2.0 - 2026-09-20
 
 - Add `@immutable`: deeply immutable, slotted, keyword-only dataclasses with
   automatic validation on construction and `dataclasses.replace`.
@@ -18,7 +35,7 @@
 - Keep the implementation in `immutable.py`; existing schema operations retain
   their behavior. Add examples and the immutable model contract.
 
-## [1.1.0] — 2026-20-09
+## 1.1.0 - 2026-09-20
 
 - Add fixed tuples (`tuple[X, Y]`), variadic tuples (`tuple[X, ...]`) and empty
   tuples (`tuple[()]`), including nested types, unions and per-position atoms.
@@ -31,7 +48,7 @@
   `v: 1`; consumers need tuple support to read the new shape type.
 - Shorten the README and move detailed guarantees and API reference into docs.
 
-## [1.0.0] - 2026-08-10
+## 1.0.0 - 2026-08-10
 
 The core now owns the portable form of its own types. Until this release a
 compiled schema could only be read as Python objects, in the process that
@@ -98,7 +115,7 @@ then what validation and its errors guarantee.
   `date`, or one named `list[str]` beside a `list[str]` now fail at compilation
   with `Field 'x': duplicate discriminator name(s): str`. Each such pair left two
   options answering to one `$type`, with one of them unreachable — the rule
-  [restrictions.md](docs/restrictions.md) already stated, now enforced where the
+  [limits.md](docs/limits.md) already stated, now enforced where the
   implementation had only covered options sharing a runtime type. A dataclass and
   an enum of the same class name use different discriminators and remain
   admissible.
@@ -331,7 +348,7 @@ then what validation and its errors guarantee.
   while filling does not; `restrictions.md` documents the discriminator-name rule
   and the union options a portable tree cannot spell bare.
 
-## [0.0.7]
+## 0.0.7 - 2026-07-26
 
 - Breaking: `IsPathFile` now guarantees that the string names a real file at the
   moment of validation, not merely that its text ends in an accepted suffix. A
@@ -376,7 +393,7 @@ then what validation and its errors guarantee.
   exclusive to `Str`: no new shape, no `PathFile` type, and no compatibility
   switch (`exists=False`, `strict=False`) — the semantics are single and explicit.
 
-## [0.0.6]
+## 0.0.6 - 2026-07-24
 
 - Breaking: `datetime.time` values with non-zero microseconds are no longer
   accepted. Time precision is limited to whole seconds, so the effective range
@@ -393,7 +410,7 @@ then what validation and its errors guarantee.
   `exclusive bound at ... leaves no valid time`. A bound at `time.max` is instead
   rejected as sub-second precision.
 
-## [0.0.5]
+## 0.0.5 - 2026-07-23
 
 - Compilation now rejects a union of two enums that share a class name, e.g.
   two Enum classes both named `Color`, with `Field '<name>': duplicate
@@ -405,7 +422,7 @@ then what validation and its errors guarantee.
   a dataclass of the same name never collide and stay admissible. Previously the
   core admitted the pair and only a wrapper could catch it.
 
-## [0.0.4]
+## 0.0.4 - 2026-07-22
 
 - Enum fields now accept `Extra`, the same namespaced wrapper-notation channel
   the other leaf shapes already carry. `EnumShape` gains `_extras` and a
@@ -430,7 +447,7 @@ then what validation and its errors guarantee.
   degraded the whole line into the leaf and rendered `Field 'x': default <leaf>`.
   Only the message and its structure changed; no behaviour did.
 
-## [0.0.3]
+## 0.0.3 - 2026-07-20
 
 - Unions whose options share one runtime input type now compile. `list[str] |
   list[int]` was rejected as a duplicate; both options are valid Python and
@@ -453,13 +470,13 @@ then what validation and its errors guarantee.
 - No breaking change: every hint accepted by 0.0.2 compiles and behaves as
   before.
 
-## [0.0.2]
+## 0.0.2 - 2026-07-17
 
 - `Extra(value)` becomes `Extra(key, value)`, with a namespaced key
   (`"package.name"`) and any string value, empty included.
 - Shapes replace `extra` with `extras`, a read-only `dict[str, str]` merged from
   every `Extra` atom on the hint. Keys layer independently: the outer atom wins.
 
-## [0.0.1] - 2026-07-15
+## 0.0.1 - 2026-07-15
 
 - Initial release.
