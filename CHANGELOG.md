@@ -1,6 +1,11 @@
 # Changelog
 
-## [1.2.0] — Unreleased
+## [1.2.1] — 2026-09-29
+
+- Documentation only: the README title no longer carries the version, and the
+  1.2.0 entry below has its release date. The code is the same as 1.2.0.
+
+## [1.2.0] — 2026-09-20
 
 - Add `@immutable`: deeply immutable, slotted, keyword-only dataclasses with
   automatic validation on construction and `dataclasses.replace`.

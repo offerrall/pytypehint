@@ -1,4 +1,4 @@
-# pytypehint 1.2.0
+# pytypehint
 
 [![PyPI](https://img.shields.io/pypi/v/pytypehint.svg)](https://pypi.org/project/pytypehint/)
 
