@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0 - 2026-11-13
+
+- Add `Struct.encode(instance)` and `Signature.encode(kwargs)`: write a valid
+  value as the portable tree `decode` reads. For a valid value,
+  `schema.build(schema.decode(schema.encode(value)))` returns it with its types,
+  also after a JSON transport.
+- Name union options exactly as `to_dict()` already does for defaults; both now
+  share one writer. The portable format remains `v: 1` and exported documents
+  are unchanged.
+- Encode does not validate. It rejects only what it cannot write: a wrong root
+  type, a value belonging to no option of its slot, a fixed tuple of the wrong
+  length and unknown signature arguments, each with its `path`.
+- The public surface grows by no new names: both are methods on the compiled
+  schemas. Existing operations retain their behavior.
+
 ## 1.2.3 - 2026-09-29
 
 ### Changed

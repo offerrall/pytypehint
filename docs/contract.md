@@ -95,7 +95,8 @@ A field default taken from the document round-trips through
 `schema.build(schema.decode(data))`, subject to the author's
 [default purity requirements](defaults.md).
 
-To select an option when writing portable values:
+[`encode`](encode.md) writes any valid value in this spelling. To select an
+option when writing portable values by other means:
 
 | Slot | Encoding |
 |---|---|

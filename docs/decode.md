@@ -16,7 +16,7 @@ booking = schema.build(schema.decode({"day": "2026-08-08"}))
 assert booking.day == date(2026, 8, 8)
 ```
 
-The caller parses JSON text. Decode accepts the resulting plain dictionaries,
+[`encode`](encode.md) is the inverse operation. The caller parses JSON text. Decode accepts the resulting plain dictionaries,
 lists, strings, numbers, booleans and `None`; it does not parse or emit JSON.
 
 | Shape | Restoration |

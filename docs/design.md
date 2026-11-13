@@ -10,7 +10,7 @@ checks requiring files, networks or application state:
 | Task | Responsible layer |
 |---|---|
 | Define ordinary models | Python dataclasses and type hints |
-| Inspect/export schemas, validate values, restore portable types, construct models | pytypehint |
+| Inspect/export schemas, validate values, restore and write portable types, construct models | pytypehint |
 | Parse JSON, coerce form/CLI input, render controls, collect multiple errors | Consumer |
 | Call functions, check files, manage persistence/authentication | Application |
 

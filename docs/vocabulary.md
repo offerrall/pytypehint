@@ -48,8 +48,8 @@ Everything public is exported from `pytypehint`:
   `Extra`, `OptionalToggle`;
 - `MISSING`.
 
-`Struct` and `Signature` expose the [four operations](overview.md#the-four-operations):
-`.build(data)`, `.resolve(data)`, `.decode(data)` and `.to_dict()`.
+`Struct` and `Signature` expose the [five operations](overview.md#the-five-operations):
+`.build(data)`, `.resolve(data)`, `.decode(data)`, `.encode(value)` and `.to_dict()`.
 `Struct.fields` and `Signature.params` contain `Field` objects; `Field.shape`
 contains the available shapes, and `Field.default` is `MISSING` when no default
 exists. `Shape.option_id()` gives the discriminator identity.

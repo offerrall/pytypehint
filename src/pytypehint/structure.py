@@ -57,6 +57,12 @@ class Struct(Shape):
     def decode(self, data) -> dict:
         return _decode_fields(self.fields, data)
 
+    def encode(self, instance) -> dict:
+        if type(instance) is not self.cls:
+            raise SchemaTypeError(
+                f"expected {self.cls.__name__}, got {type(instance).__name__}")
+        return _encode_shape(self, instance, ())
+
     def resolve(self, data) -> dict:
         if type(data) is self.cls:
             raise SchemaTypeError(f"expected dict, got {self.cls.__name__} instance")
@@ -428,6 +434,69 @@ def _decode_fields(fields, data) -> dict:
         f = known.get(key) if type(key) is str else None
         decoded[key] = _plain_copy(value) if f is None else _decode_options(f.shape, value)
     return decoded
+
+
+# Encode checks only what routing needs; build validates what decode restores.
+def _encode_options(shapes, value, path):
+    shape = value_branch(shapes, value)
+    if shape is None:
+        try:
+            check_options_value(shapes, value)
+        except (TypeError, ValueError) as e:
+            raise _prefixed(e, path) from e
+        raise AssertionError("unrouted value matches an option")
+
+    written = _encode_shape(shape, value, path)
+
+    if type(shape) is Struct:
+        if len([s for s in shapes if type(s) is Struct]) > 1:
+            return {_TYPE: shape.cls.__name__, **written}
+        return written
+
+    if any(option is shape for option in _portable_options(shapes)):
+        return {_TYPE: shape.option_id(), _VALUE: written}
+    return written
+
+
+def _encode_shape(shape, value, path):
+    kind = type(shape)
+    # Keep an invalid fraction or offset in the text for validation to report.
+    if kind in (Date, Time):
+        return value.isoformat()
+    if kind is EnumShape:
+        return value.name
+    if kind is List:
+        return [_encode_options(shape.item, item, (*path, i))
+                for i, item in enumerate(value)]
+    if kind is Tuple:
+        # Length limits are left for build; only a fixed size decides the slots.
+        if not shape.variadic and len(value) != len(shape.items):
+            raise SchemaValueError(
+                f"expected {len(shape.items)} items, got {len(value)}", path)
+        return [_encode_options(shape._item_at(i), item, (*path, i))
+                for i, item in enumerate(value)]
+    if kind is Struct:
+        return {f.name: _encode_options(f.shape, getattr(value, f.name), (*path, f.name))
+                for f in shape.fields}
+    return value
+
+
+def _encode_fields(fields, data, *, kind: str) -> dict:
+    if type(data) is not dict:
+        raise SchemaTypeError(f"expected dict, got {type(data).__name__}")
+
+    invalid_key = next((key for key in data if type(key) is not str), MISSING)
+    if invalid_key is not MISSING:
+        raise SchemaTypeError(
+            f"expected string keys, got {type(invalid_key).__name__}")
+
+    known = {f.name for f in fields}
+    extra = sorted(k for k in data if k not in known)
+    if extra:
+        raise SchemaTypeError(f"unexpected {kind}(s): {', '.join(extra)}")
+
+    return {f.name: _encode_options(f.shape, data[f.name], (f.name,))
+            for f in fields if f.name in data}
 
 
 # Build disables present-value checks after the outer resolve validated them.

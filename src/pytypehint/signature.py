@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from pytypehint.contract import _signature_document
 from pytypehint.structure import (
-    Field, _build_kwargs, _decode_fields, _resolve_fields,
+    Field, _build_kwargs, _decode_fields, _encode_fields, _resolve_fields,
 )
 
 
@@ -27,6 +27,9 @@ class Signature:
 
     def decode(self, kwargs) -> dict:
         return _decode_fields(self.params, kwargs)
+
+    def encode(self, kwargs) -> dict:
+        return _encode_fields(self.params, kwargs, kind="argument")
 
     def resolve(self, kwargs) -> dict:
         return _resolve_fields(self.params, kwargs, kind="argument")

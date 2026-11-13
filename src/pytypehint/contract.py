@@ -1,12 +1,10 @@
 from datetime import date, time
 
-from pytypehint.errors import SchemaValueError
 from pytypehint.shapes import (
     Bool, Date, EnumShape, Float, Int, List, NoneShape, Str, Time, Tuple,
 )
-from pytypehint.structure import Struct, _TYPE, _VALUE, _portable_options
+from pytypehint.structure import Struct, _encode_options
 from pytypehint.utils import MISSING
-from pytypehint.validation import value_branch
 
 _VERSION = 1
 
@@ -15,43 +13,6 @@ _TYPE_NAMES = {
     Time: "time", NoneShape: "none", List: "list", EnumShape: "enum",
     Struct: "struct", Tuple: "tuple",
 }
-
-
-def _portable(shapes, value):
-    shape = value_branch(shapes, value)
-    if shape is None:
-        raise SchemaValueError(
-            f"cannot describe {value!r}: it matches no option of this slot")
-    written = _written(shape, value)
-
-    if type(shape) is Struct:
-        if len([s for s in shapes if type(s) is Struct]) > 1:
-            return {_TYPE: shape.cls.__name__, **written}
-        return written
-
-    if any(option is shape for option in _portable_options(shapes)):
-        return {_TYPE: shape.option_id(), _VALUE: written}
-    return written
-
-
-def _written(shape, value):
-    kind = type(shape)
-    if kind is Date:
-        return value.isoformat()
-    if kind is Time:
-        return value.isoformat(timespec="seconds")
-    if kind is EnumShape:
-        return value.name
-    if kind is List:
-        return [_portable(shape.item, item) for item in value]
-    if kind is Tuple:
-        return [_portable(shape._item_at(i), item) for i, item in enumerate(value)]
-    if kind is Struct:
-        return {f.name: _portable(f.shape, getattr(value, f.name))
-                for f in shape.fields}
-    if kind is Float:
-        return _as_float(value)
-    return value
 
 
 def _as_float(value):
@@ -234,7 +195,7 @@ def _field_node(f, doc: _Document) -> dict:
     if f.optional_toggle is not None:
         node["optional_toggle"] = f.optional_toggle.enabled
     if f.default is not MISSING:
-        node["default"] = _portable(f.shape, f.default)
+        node["default"] = _encode_options(f.shape, f.default, (f.name, "default"))
     node["shape"] = _slot(f.shape, doc)
     return node
 

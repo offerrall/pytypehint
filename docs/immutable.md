@@ -78,6 +78,6 @@ validation cannot undo their external effects. Use ordinary dataclasses and
 Model classes and compiled contracts remain registered for the process lifetime;
 define reusable models rather than generating a new class for each value.
 
-`resolve`, `build`, `decode` and `to_dict` remain available through `struct_of`.
+`resolve`, `build`, `decode`, `encode` and `to_dict` remain available through `struct_of`.
 Their input rules and full recursive validation are unchanged; the reuse shortcut
 belongs only to `@immutable` construction.

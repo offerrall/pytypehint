@@ -61,8 +61,8 @@ see [Immutable models](immutable.md) for the full contract, inheritance and defa
 ## Portable data and inspection
 
 The same models work with the schema API. `decode` restores portable values such
-as JSON arrays and discriminated unions, and `to_dict` describes the schema for a
-UI or another process:
+as JSON arrays and discriminated unions, `encode` writes them back, and `to_dict`
+describes the schema for a UI or another process:
 
 ```python
 from pytypehint import struct_of
@@ -77,6 +77,7 @@ loaded = schema.build(schema.decode({
 }))
 
 assert loaded == original
+assert schema.build(schema.decode(schema.encode(original))) == original
 contract = schema.to_dict()  # Portable description for a UI or another process
 ```
 
@@ -95,11 +96,12 @@ assert size_field.label.value == "Brush size"
 assert size_shape.max.value == 256
 ```
 
-## The four operations
+## The five operations
 
 | Method | Result |
 |---|---|
 | [`build(data)`](build.md) | Dataclass instance; `signature_of(fn)` returns kwargs for `fn(**kwargs)` |
 | [`resolve(data)`](resolve.md) | Validated dictionary with missing defaults filled at this level |
 | [`decode(data)`](decode.md) | Portable values restored to Python types |
+| [`encode(value)`](encode.md) | A valid value written as portable data |
 | [`to_dict()`](contract.md) | Portable schema description |
